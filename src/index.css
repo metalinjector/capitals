@@ -292,3 +292,374 @@ select.input-gold {
     animation: none !important;
   }
 }
+
+/* ===== accessibility and finish ===== */
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 7rem;
+}
+
+body {
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+a,
+input,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:not(:disabled),
+a[href],
+select {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid #f0d78c;
+  outline-offset: 3px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+.skip-link {
+  position: fixed;
+  z-index: 100;
+  top: 0.75rem;
+  left: 0.75rem;
+  transform: translateY(-180%);
+  border: 1px solid rgba(232, 213, 163, 0.4);
+  border-radius: 999px;
+  background: #f0d78c;
+  padding: 0.75rem 1.1rem;
+  color: #071018;
+  font-size: 0.875rem;
+  font-weight: 700;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+  transition: transform 0.2s ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+#main-content:focus {
+  outline: none;
+}
+
+.country-passport {
+  background: linear-gradient(135deg, rgba(212, 168, 83, 0.08), rgba(12, 28, 42, 0.96) 42%, rgba(7, 16, 24, 0.9));
+  box-shadow: 0 24px 70px -42px rgba(212, 168, 83, 0.28);
+}
+
+.atlas-image-fallback {
+  background:
+    radial-gradient(ellipse at 28% 24%, rgba(212, 168, 83, 0.13), transparent 48%),
+    repeating-linear-gradient(135deg, rgba(232, 213, 163, 0.035) 0 1px, transparent 1px 18px),
+    #0c1c2a;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .country-passport {
+    transition: border-color 220ms ease, box-shadow 220ms ease;
+  }
+
+  .country-passport:hover {
+    border-color: rgba(212, 168, 83, 0.38);
+    box-shadow: 0 28px 80px -40px rgba(212, 168, 83, 0.35);
+  }
+}
+
+@media (max-width: 640px) {
+  html {
+    scroll-padding-top: 6rem;
+  }
+
+  .meridians {
+    opacity: 0.18;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ===== falling capitals game ===== */
+@keyframes falling-tile-drop {
+  0% {
+    top: -6rem;
+    transform: translateX(-50%) rotate(-2.5deg);
+    opacity: 0;
+  }
+  6% {
+    opacity: 1;
+  }
+  100% {
+    top: calc(100% + 1rem);
+    transform: translateX(-50%) rotate(2deg);
+    opacity: 1;
+  }
+}
+
+.falling-board {
+  position: relative;
+  isolation: isolate;
+  height: clamp(620px, 74vh, 760px);
+  min-height: 620px;
+  overflow: hidden;
+  border: 1px solid rgba(232, 213, 163, 0.14);
+  border-radius: 1.75rem;
+  background:
+    radial-gradient(ellipse at 50% -10%, rgba(212, 168, 83, 0.13), transparent 48%),
+    radial-gradient(ellipse at 50% 100%, rgba(61, 155, 122, 0.11), transparent 42%),
+    linear-gradient(180deg, #0b1b29 0%, #08131e 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+.falling-board-grid {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(232, 213, 163, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232, 213, 163, 0.035) 1px, transparent 1px),
+    radial-gradient(ellipse at center, transparent 35%, rgba(2, 8, 13, 0.5) 100%);
+  background-size: 48px 48px, 48px 48px, 100% 100%;
+  mask-image: linear-gradient(to bottom, transparent, black 14%, black 84%, transparent);
+}
+
+.falling-board::before,
+.falling-board::after {
+  position: absolute;
+  z-index: 0;
+  content: "";
+  pointer-events: none;
+}
+
+.falling-board::before {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  border-left: 1px dashed rgba(232, 213, 163, 0.1);
+}
+
+.falling-board::after {
+  right: 8%;
+  bottom: 1.5rem;
+  left: 8%;
+  border-bottom: 1px solid rgba(212, 168, 83, 0.32);
+  box-shadow: 0 6px 25px rgba(212, 168, 83, 0.12);
+}
+
+.falling-lane-label {
+  position: absolute;
+  z-index: 0;
+  top: 1.1rem;
+  color: rgba(232, 213, 163, 0.35);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.falling-lane-label-left {
+  left: 1.25rem;
+}
+
+.falling-lane-label-right {
+  right: 1.25rem;
+}
+
+.falling-tile {
+  position: absolute;
+  z-index: 2;
+  top: -6rem;
+  display: flex;
+  min-height: 4.2rem;
+  width: min(var(--tile-width), calc(50% - 0.8rem));
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.25rem;
+  overflow-wrap: anywhere;
+  border: 1px solid rgba(212, 168, 83, 0.48);
+  border-radius: 1.25rem;
+  padding: 0.72rem 1rem;
+  background: linear-gradient(145deg, rgba(36, 43, 43, 0.97), rgba(13, 24, 31, 0.97));
+  color: #f4ead5;
+  text-align: left;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  animation-name: falling-tile-drop;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
+}
+
+.falling-tile::before {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.6rem;
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+  opacity: 0.75;
+}
+
+.falling-tile-country {
+  border-color: rgba(88, 187, 158, 0.48);
+  background: linear-gradient(145deg, rgba(21, 64, 60, 0.96), rgba(10, 29, 35, 0.98));
+  color: #d8f3e7;
+}
+
+.falling-tile-capital {
+  border-color: rgba(212, 168, 83, 0.55);
+  background: linear-gradient(145deg, rgba(78, 58, 28, 0.96), rgba(32, 27, 23, 0.98));
+  color: #fff0c8;
+}
+
+.falling-tile:hover:not(:disabled) {
+  z-index: 5;
+  border-color: #f0d78c;
+  filter: brightness(1.12);
+}
+
+.falling-tile-selected,
+.falling-tile-selected:hover:not(:disabled) {
+  z-index: 6;
+  border-color: #fff1b8;
+  box-shadow: 0 0 0 3px rgba(240, 215, 140, 0.26), 0 0 34px rgba(212, 168, 83, 0.28);
+  filter: brightness(1.2);
+}
+
+.falling-tile:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.falling-tile-kind {
+  color: rgba(232, 213, 163, 0.65);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  line-height: 1;
+}
+
+.falling-tile-label {
+  max-width: 100%;
+  font-family: var(--font-serif);
+  font-size: clamp(1.02rem, 2.2vw, 1.42rem);
+  font-weight: 700;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.falling-overlay {
+  position: absolute;
+  z-index: 10;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  padding: 1.25rem;
+  background: rgba(5, 12, 18, 0.7);
+  backdrop-filter: blur(8px);
+}
+
+.falling-overlay-card {
+  width: min(100%, 38rem);
+  border: 1px solid rgba(212, 168, 83, 0.28);
+  border-radius: 1.75rem;
+  padding: 1.5rem;
+  background: linear-gradient(150deg, rgba(16, 34, 47, 0.98), rgba(7, 16, 24, 0.98));
+  text-align: center;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.falling-emblem {
+  display: grid;
+  width: 3rem;
+  height: 3rem;
+  margin: 0 auto 1rem;
+  place-items: center;
+  border: 1px solid rgba(212, 168, 83, 0.38);
+  border-radius: 1rem;
+  background: rgba(212, 168, 83, 0.1);
+  color: #f0d78c;
+  font-size: 1.6rem;
+  box-shadow: 0 0 32px rgba(212, 168, 83, 0.12);
+}
+
+.falling-board.motion-reduced {
+  height: auto;
+  min-height: 680px;
+  overflow-y: auto;
+}
+
+.falling-board.motion-reduced .falling-tile {
+  top: calc(1rem + var(--tile-row-offset)) !important;
+  transform: translateX(-50%) !important;
+  animation: none !important;
+}
+
+@media (max-width: 640px) {
+  .falling-board {
+    height: 620px;
+    min-height: 620px;
+    border-radius: 1.4rem;
+  }
+
+  .falling-tile {
+    width: min(var(--tile-width), calc(50% - 0.65rem));
+    min-height: 4rem;
+    border-radius: 1.05rem;
+    padding: 0.65rem 0.7rem;
+  }
+
+  .falling-tile-label {
+    font-size: clamp(0.98rem, 4.4vw, 1.25rem);
+  }
+
+  .falling-lane-label-left {
+    left: 0.8rem;
+  }
+
+  .falling-lane-label-right {
+    right: 0.8rem;
+  }
+
+  .falling-overlay-card {
+    padding: 1.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .falling-board .falling-tile {
+    top: calc(1rem + var(--tile-row-offset)) !important;
+    transform: translateX(-50%) !important;
+    animation: none !important;
+  }
+}

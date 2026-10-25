@@ -1,7 +1,9 @@
 import { Component, useEffect, useMemo, useRef, useState } from "react";
 import { capitals, REGIONS, type Capital, type RegionId } from "./data/capitals";
+import { COUNTRY_DATA_AS_OF, COUNTRY_DATA_SOURCES, COUNTRY_PROFILES, populationMethodNote } from "./data/countryProfiles";
 import { britannicaUrl, photosOf, wikipediaUrl } from "./wiki";
 import Crossword from "./Crossword";
+import FallingPairs from "./FallingPairs";
 import EuropeMap from "./EuropeMap";
 import { MAP_IDS } from "./data/europeMap";
 import {
@@ -32,10 +34,10 @@ import {
   type Progress,
 } from "./lib";
 
-type View = "home" | "setup" | "quiz" | "atlas" | "card" | "map" | "stats" | "results" | "crossword";
+type View = "home" | "setup" | "quiz" | "atlas" | "card" | "map" | "stats" | "results" | "crossword" | "falling";
 
 const COUNTS = [8, 12, 20] as const;
-const VIEWS: View[] = ["home", "setup", "quiz", "atlas", "card", "map", "stats", "results", "crossword"];
+const VIEWS: View[] = ["home", "setup", "quiz", "atlas", "card", "map", "stats", "results", "crossword", "falling"];
 
 /** Sections have their own URLs, so direct links and the browser Back button work. */
 function parseHash(hash: string): { view: View; focusId: string | null } {
@@ -60,17 +62,18 @@ export default function App() {
   const [mode, setMode] = useState<Mode>("choice");
   const [region, setRegion] = useState<RegionId>("school");
   const [count, setCount] = useState<number | "all">(12);
-  const [progress, setProgress] = useState<Progress>(emptyProgress);
+  const [progress, setProgress] = useState<Progress>(loadProgress);
   const [sound, setSound] = useState(true);
   const [result, setResult] = useState<QuizResult | null>(null);
-  const [dailyDone, setDailyDone] = useState(false);
+  const [dailyDone, setDailyDone] = useState(() => {
+    try {
+      return localStorage.getItem("atlas-daily") === todayKey();
+    } catch {
+      return false;
+    }
+  });
   const [customIds, setCustomIds] = useState<string[] | null>(null);
   const lastHash = useRef<string | null>(null);
-
-  useEffect(() => {
-    setProgress(loadProgress());
-    setDailyDone(localStorage.getItem("atlas-daily") === todayKey());
-  }, []);
 
   useEffect(() => {
     saveProgress(progress);
@@ -80,6 +83,7 @@ export default function App() {
     const next = hashFor(view, focusId);
     lastHash.current = next;
     if (window.location.hash !== next) window.history.pushState(null, "", next);
+    window.scrollTo({ top: 0, behavior: "instant" });
   }, [view, focusId]);
 
   useEffect(() => {
@@ -129,6 +133,16 @@ export default function App() {
         <div className="noise absolute inset-0 opacity-[0.06]" />
       </div>
 
+      <a
+        href="#main-content"
+        onClick={(event) => {
+          event.preventDefault();
+          document.getElementById("main-content")?.focus();
+        }}
+        className="skip-link"
+      >
+        К основному содержимому
+      </a>
       <Header
         view={view}
         onNav={(v) => setView(v)}
@@ -139,7 +153,7 @@ export default function App() {
         onSound={() => setSound((s) => !s)}
       />
 
-      <main className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-20 pt-36 sm:px-6 sm:pt-24">
+      <main id="main-content" tabIndex={-1} className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-20 pt-36 sm:px-6 lg:pt-24">
         <SectionBoundary key={`${view}:${focusId ?? ""}`} onReset={goHome}>
           {view === "home" && (
             <Home
@@ -159,6 +173,7 @@ export default function App() {
               onAtlas={() => setView("atlas")}
               onStats={() => setView("stats")}
               onCrossword={() => setView("crossword")}
+              onFalling={() => setView("falling")}
               onReview={() => {
                 const due = dueIds(progress);
                 start("review", "all", due.length, due);
@@ -170,6 +185,13 @@ export default function App() {
               onSolved={(pts) =>
                 setProgress((p) => ({ ...p, totalPoints: p.totalPoints + pts }))
               }
+            />
+          )}
+          {view === "falling" && (
+            <FallingPairs
+              sound={sound}
+              onBack={goHome}
+              onPoints={(points) => setProgress((p) => ({ ...p, totalPoints: p.totalPoints + points }))}
             />
           )}
           {view === "setup" && (
@@ -225,10 +247,7 @@ export default function App() {
               onQuiz={() => {
                 const item = capitals.find((c) => c.id === focusId);
                 if (!item) return;
-                setMode("type");
-                setRegion("all");
-                setCount(1);
-                start("choice", item.region, 8);
+                start("type", "all", 1, [item.id]);
               }}
             />
           )}
@@ -256,6 +275,22 @@ export default function App() {
             />
           )}
         </SectionBoundary>
+        <footer className="mt-16 border-t border-[#e8d5a3]/10 py-6 text-xs text-[#e8d5a3]/55">
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+            <div>
+              <div className="font-serif text-lg tracking-[0.16em] text-[#e8d5a3]/80">ATLAS EUROPA</div>
+              <p className="mt-1 max-w-xl leading-relaxed">
+                Учебная выборка из 45 государств. Данные о членстве проверены {COUNTRY_DATA_AS_OF.split("-").reverse().join(".")};
+                оценки населения и границы статистического охвата указаны в карточках.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
+              <SourceLink href={COUNTRY_DATA_SOURCES.population.url}>ООН · население</SourceLink>
+              <SourceLink href={COUNTRY_DATA_SOURCES.eu.url}>ЕС · страны</SourceLink>
+              <SourceLink href={COUNTRY_DATA_SOURCES.schengen.url}>Еврокомиссия · Шенген</SourceLink>
+            </div>
+          </div>
+        </footer>
       </main>
     </div>
   );
@@ -324,8 +359,8 @@ function Header({
 }) {
   return (
     <header className="fixed inset-x-0 top-0 z-40 border-b border-[#e8d5a3]/[0.06] bg-[#071018]/70 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:flex-nowrap sm:px-6">
-        <button onClick={() => onNav("home")} className="group flex items-center gap-3">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:flex-nowrap">
+        <button onClick={() => onNav("home")} className="group flex min-h-11 items-center gap-3" aria-label="ATLAS EUROPA — на главную">
           <Compass className="h-10 w-10 text-[#d4a853] transition group-hover:rotate-45" />
           <div className="text-left">
             <div className="font-serif text-xl font-semibold tracking-[0.18em] text-[#f4ead5] sm:text-2xl">
@@ -336,12 +371,15 @@ function Header({
             </div>
           </div>
         </button>
-        <nav className="glass flex w-full items-center justify-between gap-0 overflow-x-auto rounded-full p-1 sm:w-auto sm:gap-1">
+        <nav aria-label="Основная навигация" className="glass flex w-full items-center justify-between gap-0 overflow-x-auto rounded-full p-1 lg:w-auto lg:gap-1">
           <NavBtn active={view === "home" || view === "setup" || view === "quiz"} onClick={() => onNav("home")}>
             Квиз
           </NavBtn>
           <NavBtn active={view === "crossword"} onClick={() => onNav("crossword")}>
             Кроссворд
+          </NavBtn>
+          <NavBtn active={view === "falling"} onClick={() => onNav("falling")}>
+            Пары
           </NavBtn>
           <NavBtn active={view === "atlas" || view === "card"} onClick={() => onNav("atlas")}>
             Атлас
@@ -354,13 +392,15 @@ function Header({
           </NavBtn>
           <button
             onClick={onSound}
-            className="ml-1 hidden h-9 w-9 place-items-center rounded-full text-sm text-[#e8d5a3]/80 hover:bg-white/5 sm:grid"
+            className="ml-1 hidden h-10 w-10 place-items-center rounded-full text-sm text-[#e8d5a3]/80 hover:bg-white/5 focus-visible:outline-none sm:grid"
             title={sound ? "Звук включён" : "Звук выключен"}
+            aria-label={sound ? "Выключить звук" : "Включить звук"}
+            aria-pressed={sound}
           >
             {sound ? "♪" : "×"}
           </button>
         </nav>
-        <div className="hidden items-center gap-4 md:flex">
+        <div className="hidden items-center gap-4 lg:flex">
           <MiniStat label="изучено" value={`${known}/${total}`} />
           <MiniStat label="очки" value={String(points)} />
         </div>
@@ -381,7 +421,8 @@ function NavBtn({
   return (
     <button
       onClick={onClick}
-      className={`rounded-full px-1.5 py-1.5 text-[11px] font-medium transition sm:px-4 sm:text-sm ${
+      aria-current={active ? "page" : undefined}
+      className={`min-h-10 shrink-0 whitespace-nowrap rounded-full px-1 py-1.5 text-[11px] font-medium transition sm:px-4 sm:text-sm ${
         active ? "bg-[#d4a853] text-[#071018]" : "text-[#e8d5a3]/80 hover:bg-white/5"
       }`}
     >
@@ -409,6 +450,7 @@ function Home({
   onAtlas,
   onStats,
   onCrossword,
+  onFalling,
   onReview,
 }: {
   progress: Progress;
@@ -420,20 +462,30 @@ function Home({
   onAtlas: () => void;
   onStats: () => void;
   onCrossword: () => void;
+  onFalling: () => void;
   onReview: () => void;
 }) {
   const mastered = Object.values(progress.mastery).filter((m) => m >= 3).length;
   const pct = Math.round((mastered / capitals.length) * 100);
   const [factIdx, setFactIdx] = useState(() => Math.floor(Math.random() * 1000));
+  const [reduceMotion, setReduceMotion] = useState(false);
   const ticker = useMemo(
     () => shuffle(capitals.flatMap((c) => c.facts.map((f) => ({ c, f })))).slice(0, 60),
     []
   );
   const current = ticker[factIdx % ticker.length];
   useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReduceMotion(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  useEffect(() => {
+    if (reduceMotion) return;
     const t = setInterval(() => setFactIdx((i) => i + 1), 9000);
     return () => clearInterval(t);
-  }, []);
+  }, [reduceMotion]);
   const totalFacts = capitals.reduce((s, c) => s + c.facts.length, 0);
 
   return (
@@ -441,23 +493,25 @@ function Home({
       <section className="relative overflow-hidden rounded-[2rem] border border-[#e8d5a3]/15 shadow-2xl shadow-black/40">
         <img
           src="/images/hero.jpg"
-          alt="Европа с высоты"
+          alt="Пейзаж Европы — заставка интерактивного атласа"
+          fetchPriority="high"
+          decoding="async"
           className="h-[34rem] w-full object-cover sm:h-[32rem]"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-[#071018] via-[#071018]/75 to-[#071018]/20" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#071018] via-transparent to-[#071018]/40" />
         <div className="absolute inset-0 flex flex-col justify-end p-6 sm:p-12">
-          <p className="animate-rise mb-3 text-xs uppercase tracking-[0.42em] text-[#d4a853]">
-            интерактивный атлас · 45 столиц · {totalFacts} фактов
+          <p className="animate-rise mb-3 text-xs uppercase tracking-[0.3em] text-[#d4a853] sm:tracking-[0.42em]">
+            интерактивный атлас · 45 стран · {totalFacts} фактов
           </p>
-          <h1 className="animate-rise font-serif text-4xl font-semibold leading-[0.95] sm:text-7xl">
-            Выучи столицы
+          <h1 className="animate-rise max-w-4xl font-serif text-4xl font-semibold leading-[0.95] sm:text-7xl">
+            Открой Европу
             <br />
-            <span className="gold-text italic">как путешественница</span>
+            <span className="gold-text italic">от столицы к столице</span>
           </h1>
-          <p className="mt-5 max-w-xl text-sm leading-relaxed text-[#f4ead5]/75 sm:text-base">
-            Три варианта, если ещё неуверенно. Своими буквами — когда уже почти знаешь. Подсказка
-            откроет первую, максимум две первые буквы. А ещё — занимательные истории про каждый город.
+          <p className="mt-5 max-w-xl text-sm leading-relaxed text-[#f4ead5]/80 sm:text-base">
+            Тренируй память короткими квизами, изучай страны через языки, валюты и факты, находи столицы на карте.
+            Прогресс остаётся в браузере — аккаунт не нужен.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <button
@@ -471,6 +525,12 @@ function Home({
               className="rounded-full border border-[#e8d5a3]/30 bg-white/5 px-6 py-3 text-sm font-semibold text-[#f4ead5] backdrop-blur hover:bg-white/10"
             >
               ✎ Кроссворд
+            </button>
+            <button
+              onClick={onFalling}
+              className="rounded-full border border-[#3d9b7a]/45 bg-[#0b302a]/55 px-6 py-3 text-sm font-semibold text-[#c8f0df] backdrop-blur transition hover:bg-[#145443]/70"
+            >
+              ↕ Поймай пару
             </button>
             <button
               onClick={onAtlas}
@@ -618,6 +678,14 @@ function Home({
             icon="✎"
             featured
             onClick={onCrossword}
+          />
+          <ModeCard
+            kicker="на скорость · 3 ошибки"
+            title="Поймай пару"
+            text="Плитки с названиями стран и столиц падают сверху. Соедини пары до того, как они коснутся края."
+            icon="↕"
+            featured
+            onClick={onFalling}
           />
           <ModeCard
             kicker="география"
@@ -782,12 +850,20 @@ function Chip({
   return (
     <button
       onClick={onClick}
-      className={`rounded-full px-4 py-2 text-sm ${
+      className={`min-h-11 rounded-full px-4 py-2 text-sm transition ${
         active ? "bg-[#d4a853] text-[#071018]" : "border border-white/15 text-[#f4ead5] hover:bg-white/5"
       }`}
     >
       {children}
     </button>
+  );
+}
+
+function AtlasTag({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="rounded-full border border-[#d4a853]/20 bg-[#d4a853]/[0.06] px-3 py-1.5 text-xs text-[#e8d5a3]/80">
+      {children}
+    </span>
   );
 }
 
@@ -1090,11 +1166,11 @@ function Quiz({
 
   return (
     <div className="mx-auto max-w-2xl">
-      <div className="mb-6 flex items-center justify-between gap-3">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <button onClick={onExit} className="text-sm text-[#e8d5a3]/70 hover:text-[#d4a853]">
           ← выход
         </button>
-        <div className="flex items-center gap-3 text-sm">
+        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-sm">
           {mode === "blitz" && (
             <span className={`rounded-full px-3 py-1 font-semibold ${time <= 10 ? "bg-rose-500/20 text-rose-300" : "bg-white/10"}`}>
               {time}s
@@ -1125,7 +1201,7 @@ function Quiz({
             {mode === "map" ? "найди страну на карте" : isReverse ? "какая это страна?" : "назови столицу"}
           </div>
           {mode !== "map" && <div className="mt-4 text-6xl">{item.flag}</div>}
-          <h2 className="mt-4 font-serif text-4xl sm:text-5xl">{isReverse ? item.capital : item.country}</h2>
+          <h2 className="mt-4 break-words font-serif text-4xl sm:text-5xl">{isReverse ? item.capital : item.country}</h2>
           {!isReverse && mode !== "map" && <p className="mt-2 text-sm text-[#e8d5a3]/60">{item.countryEn}</p>}
         </div>
 
@@ -1305,15 +1381,31 @@ function Atlas({
 }) {
   const [q, setQ] = useState("");
   const [region, setRegion] = useState<RegionId>("all");
+  const profiles = Object.values(COUNTRY_PROFILES);
+  const euCount = profiles.filter((profile) => profile.euMember).length;
+  const euroCount = profiles.filter((profile) => profile.euroArea).length;
+  const schengenCount = profiles.filter((profile) => profile.schengenMember).length;
   const list = filterCapitals(region).filter((c) => {
-    const s = q.toLowerCase();
+    const s = q.trim().toLocaleLowerCase("ru");
     if (!s) return true;
-    return (
-      c.country.toLowerCase().includes(s) ||
-      c.capital.toLowerCase().includes(s) ||
-      c.capitalEn.toLowerCase().includes(s) ||
-      c.countryEn.toLowerCase().includes(s)
-    );
+    const profile = COUNTRY_PROFILES[c.id];
+    const haystack = [
+      c.country,
+      c.countryEn,
+      c.capital,
+      c.capitalEn,
+      c.native,
+      ...c.aliases,
+      ...c.countryAliases,
+      profile?.languages,
+      profile?.currency,
+      profile?.currencyCode,
+      ...c.facts,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLocaleLowerCase("ru");
+    return haystack.includes(s);
   });
 
   return (
@@ -1321,16 +1413,28 @@ function Atlas({
       <p className="text-xs uppercase tracking-[0.32em] text-[#d4a853]">библиотека городов</p>
       <h2 className="mt-2 font-serif text-4xl sm:text-5xl">Атлас столиц</h2>
       <p className="mt-3 max-w-2xl text-[#f4ead5]/70">
-        45 европейских столиц — три и больше фотографий на каждый город с Wikimedia Commons и Wikipedia,
-        плюс истории, которые запоминаются лучше зубрёжки.
+        45 стран и столиц: городские истории, фотографии и справка о стране — языки, валюта, население,
+        площадь и международный статус.
       </p>
+      <div className="mt-5 flex flex-wrap gap-2" aria-label="Состав атласа">
+        <AtlasTag>{capitals.length} стран</AtlasTag>
+        <AtlasTag>{euCount} в ЕС</AtlasTag>
+        <AtlasTag>{euroCount} в еврозоне</AtlasTag>
+        <AtlasTag>{schengenCount} в Шенгене</AtlasTag>
+      </div>
       <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+        <label className="sr-only" htmlFor="atlas-search">Поиск по стране, столице, языку или валюте</label>
         <input
+          id="atlas-search"
+          type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Найти страну или столицу…"
+          placeholder="Страна, столица, язык или валюта…"
           className="input-gold flex-1 rounded-full px-5 py-3"
         />
+        <div className="self-center text-xs text-[#e8d5a3]/60" aria-live="polite">
+          {list.length} из {filterCapitals(region).length}
+        </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         {REGIONS.map((r) => (
@@ -1376,6 +1480,10 @@ function Atlas({
         })}
       </div>
       {list.length === 0 && <p className="mt-10 text-center text-[#e8d5a3]/60">Ничего не нашлось — попробуй другое имя.</p>}
+      <p className="mt-8 border-t border-white/10 pt-5 text-xs leading-relaxed text-[#e8d5a3]/50">
+        Это учебная подборка из 45 государств. Географический состав Европы трактуют по-разному; Турция,
+        государства Южного Кавказа и Косово в этой версии атласа отдельно не представлены.
+      </p>
     </div>
   );
 }
@@ -1401,6 +1509,9 @@ function CapitalPage({
   const seen = progress.seen[c.id] || 0;
   const ok = progress.correct[c.id] || 0;
   const shots = photosOf(c.id);
+  const profile = COUNTRY_PROFILES[c.id];
+  const dataAsOf = COUNTRY_DATA_AS_OF.split("-").reverse().join(".");
+  if (!profile) return null;
 
   return (
     <article className="animate-rise mx-auto max-w-3xl">
@@ -1417,7 +1528,7 @@ function CapitalPage({
           <div className="absolute inset-0 bg-gradient-to-t from-[#071018] via-[#071018]/10 to-transparent" />
           <div className="absolute bottom-6 left-6 right-6">
             <div className="text-5xl">{c.flag}</div>
-            <h1 className="mt-2 font-serif text-5xl">{c.capital}</h1>
+            <h1 className="mt-2 break-words font-serif text-4xl sm:text-5xl">{c.capital}</h1>
             <p className="text-[#e8d5a3]/80">
               {c.country} · {c.native} · {c.capitalEn}
             </p>
@@ -1446,15 +1557,66 @@ function CapitalPage({
             </a>
           </p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Info label="население" value={c.population} />
-            <Info label="основан" value={c.founded} />
-            <Info label="символ" value={c.landmark} />
+            <Info label="название по-местному" value={c.native} />
+            <Info label="знаковое место" value={c.landmark} />
+            <Info label="регион атласа" value={REGIONS.find((r) => r.id === c.region)?.title ?? "Европа"} />
             <Info
-              label="сложность"
+              label="сложность квиза"
               value={c.difficulty === 1 ? "легко" : c.difficulty === 2 ? "средне" : "каверзно"}
             />
           </div>
-          <h3 className="mt-8 font-serif text-2xl">Занимательное</h3>
+
+          <section className="country-passport mt-8 overflow-hidden rounded-[1.75rem] border border-[#d4a853]/20">
+            <div className="bg-gradient-to-br from-[#d4a853]/[0.12] via-[#0c1c2a] to-[#0c1c2a] p-5 sm:p-7">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase tracking-[0.3em] text-[#d4a853]">справка о стране</p>
+                  <h2 className="mt-2 break-words font-serif text-[1.45rem] sm:text-4xl">{c.country}</h2>
+                </div>
+                <span className="rounded-full border border-[#d4a853]/25 bg-[#071018]/50 px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] text-[#e8d5a3]/70">
+                  актуально на {dataAsOf}
+                </span>
+              </div>
+
+              <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <Info label={`население · ${profile.populationYear}`} value={formatPopulation(profile.population)} />
+                <Info label="площадь" value={formatArea(profile.areaKm2)} />
+                <Info label="языки" value={profile.languages} />
+                <Info label="валюта" value={`${profile.currency} · ${profile.currencyCode}`} />
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2" aria-label="Международный статус страны">
+                <StatusPill active={profile.euMember} yes="Член ЕС" no="Вне ЕС" />
+                <StatusPill active={profile.euroArea} yes="Еврозона" no="Вне еврозоны" />
+                <StatusPill active={profile.schengenMember} yes="Шенген" no="Вне Шенгена" />
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-[#e8d5a3]/10 bg-[#071018]/45 p-4">
+                <div className="text-[10px] uppercase tracking-[0.22em] text-[#d4a853]">коротко о стране</div>
+                <p className="mt-2 text-sm leading-relaxed text-[#f4ead5]/85">{profile.fact}</p>
+                {profile.note && <p className="mt-2 text-xs leading-relaxed text-[#e8d5a3]/60">{profile.note}</p>}
+              </div>
+
+              <p className="mt-4 text-[11px] leading-relaxed text-[#e8d5a3]/55">
+                {populationMethodNote(profile)}{" "}
+                Членство в ЕС, еврозоне и Шенгене сверено на {dataAsOf}. Площадь приведена как справочная величина.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs">
+                <SourceLink href={profile.populationYear === 2025 ? COUNTRY_DATA_SOURCES.population.url : COUNTRY_DATA_SOURCES.vaticanPopulation.url}>
+                  {profile.populationYear === 2025 ? COUNTRY_DATA_SOURCES.population.label : COUNTRY_DATA_SOURCES.vaticanPopulation.label}
+                </SourceLink>
+                {c.id === "va" && (
+                  <SourceLink href={COUNTRY_DATA_SOURCES.vaticanGeography.url}>{COUNTRY_DATA_SOURCES.vaticanGeography.label}</SourceLink>
+                )}
+                <SourceLink href={COUNTRY_DATA_SOURCES.eu.url}>{COUNTRY_DATA_SOURCES.eu.label}</SourceLink>
+                <SourceLink href={COUNTRY_DATA_SOURCES.euro.url}>{COUNTRY_DATA_SOURCES.euro.label}</SourceLink>
+                <SourceLink href={COUNTRY_DATA_SOURCES.schengen.url}>{COUNTRY_DATA_SOURCES.schengen.label}</SourceLink>
+                <SourceLink href={countryWikiUrl(c.countryEn)}>Справка о стране · Wikipedia</SourceLink>
+              </div>
+            </div>
+          </section>
+
+          <h3 className="mt-8 font-serif text-2xl">Истории о городе</h3>
           <ol className="mt-4 space-y-4">
             {c.facts.map((f, i) => (
               <li key={i} className="flex gap-4">
@@ -1476,7 +1638,7 @@ function CapitalPage({
             </div>
             <div className="flex flex-wrap gap-2">
               <button onClick={onQuiz} className="rounded-full bg-[#d4a853] px-5 py-2 text-sm font-semibold text-[#071018]">
-                Повторить регион
+                Проверить себя
               </button>
               <button onClick={onBack} className="rounded-full border border-white/15 px-5 py-2 text-sm">
                 К другим городам
@@ -1491,11 +1653,48 @@ function CapitalPage({
 
 function Info({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-      <div className="text-[10px] uppercase tracking-[0.2em] text-[#d4a853]">{label}</div>
-      <div className="mt-1 text-sm leading-snug">{value}</div>
+    <div className="min-w-0 rounded-2xl border border-white/10 bg-white/5 p-3">
+      <div className="break-words text-[10px] uppercase tracking-[0.2em] text-[#d4a853]">{label}</div>
+      <div className="mt-1 break-words text-sm leading-snug">{value}</div>
     </div>
   );
+}
+
+function StatusPill({ active, yes, no }: { active: boolean; yes: string; no: string }) {
+  return (
+    <span
+      className={`rounded-full border px-3 py-1.5 text-xs ${
+        active
+          ? "border-[#3d9b7a]/45 bg-[#3d9b7a]/15 text-[#a7e6cd]"
+          : "border-white/10 bg-white/[0.03] text-[#e8d5a3]/55"
+      }`}
+    >
+      <span aria-hidden="true">{active ? "✓ " : "· "}</span>{active ? yes : no}
+    </span>
+  );
+}
+
+function SourceLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#d4a853] underline-offset-2 hover:underline">
+      {children} ↗
+    </a>
+  );
+}
+
+function formatPopulation(value: number) {
+  const format = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1 });
+  if (value >= 1_000_000) return `≈ ${format.format(value / 1_000_000)} млн`;
+  if (value >= 1_000) return `≈ ${new Intl.NumberFormat("ru-RU").format(Math.round(value / 1_000))} тыс.`;
+  return `${new Intl.NumberFormat("ru-RU").format(value)} чел.`;
+}
+
+function formatArea(value: number) {
+  return `≈ ${new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(value)} км²`;
+}
+
+function countryWikiUrl(countryEn: string) {
+  return `https://en.wikipedia.org/wiki/${encodeURIComponent(countryEn.replace(/\s+/g, "_"))}`;
 }
 
 function MapView({ progress, onOpen }: { progress: Progress; onOpen: (id: string) => void }) {
@@ -1565,6 +1764,8 @@ function Stats({
     .sort((a, b) => (progress.mastery[b.id] || 0) - (progress.mastery[a.id] || 0))
     .filter((c) => (progress.mastery[c.id] || 0) >= 3)
     .slice(0, 8);
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const [importFeedback, setImportFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
 
   return (
     <div className="animate-rise space-y-8">
@@ -1645,23 +1846,49 @@ function Stats({
           >
             Скачать прогресс
           </button>
-          <label className="cursor-pointer rounded-full border border-[#e8d5a3]/30 px-5 py-2 text-sm">
+          <button
+            type="button"
+            onClick={() => importInputRef.current?.click()}
+            className="min-h-11 rounded-full border border-[#e8d5a3]/30 px-5 py-2 text-sm transition hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d4a853]"
+          >
             Загрузить файл
-            <input
-              type="file"
-              accept="application/json,.json"
-              className="hidden"
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                e.target.value = "";
-                if (!file) return;
+          </button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept="application/json,.json"
+            className="sr-only"
+            tabIndex={-1}
+            aria-label="Выбрать файл прогресса JSON"
+            onChange={async (e) => {
+              const input = e.currentTarget;
+              const file = input.files?.[0];
+              input.value = "";
+              if (!file) return;
+              try {
+                if (file.size > 1_000_000) throw new Error("Файл превышает допустимый размер 1 МБ.");
                 const restored = importProgress(await file.text());
-                if (restored) onImport(restored);
-                else alert("Не получилось прочитать файл прогресса.");
-              }}
-            />
-          </label>
+                if (!restored) throw new Error("Не удалось прочитать файл прогресса. Проверь формат JSON.");
+                onImport(restored);
+                setImportFeedback({ kind: "success", text: "Прогресс успешно загружен." });
+              } catch (error) {
+                setImportFeedback({
+                  kind: "error",
+                  text: error instanceof Error ? error.message : "Не удалось прочитать файл прогресса.",
+                });
+              }
+            }}
+          />
         </div>
+        {importFeedback && (
+          <p
+            role={importFeedback.kind === "error" ? "alert" : "status"}
+            aria-live={importFeedback.kind === "error" ? "assertive" : "polite"}
+            className={`mt-3 text-sm ${importFeedback.kind === "error" ? "text-rose-300" : "text-emerald-300"}`}
+          >
+            {importFeedback.text}
+          </p>
+        )}
         <div className="mt-4 text-xs text-[#e8d5a3]/55">
           К повторению сейчас: {dueIds(progress).length} · всего карточек в расписании:{" "}
           {Object.keys(progress.srs).length}
@@ -1681,9 +1908,9 @@ function Stats({
 
 function StatBox({ k, v }: { k: string; v: string }) {
   return (
-    <div className="glass rounded-3xl p-6">
-      <div className="text-[10px] uppercase tracking-[0.24em] text-[#d4a853]">{k}</div>
-      <div className="mt-2 font-serif text-4xl">{v}</div>
+    <div className="glass rounded-3xl p-3 sm:p-6">
+      <div className="text-[9px] uppercase tracking-[0.2em] text-[#d4a853] sm:text-[10px] sm:tracking-[0.24em]">{k}</div>
+      <div className="mt-2 font-serif text-2xl sm:text-4xl">{v}</div>
     </div>
   );
 }
@@ -1783,15 +2010,34 @@ function WikiImg({
   alt: string;
   className?: string;
 }) {
+  const [failedSrc, setFailedSrc] = useState("");
+  const frameClass = className?.replace(/\bobject-cover\b|\btransition\b|\bduration-\d+\b|\bgroup-hover:scale-[^\s]+/g, "") ?? "";
+  const showFallback = !src || failedSrc === src;
   return (
-    <img
-      src={src}
-      alt={alt}
-      className={className}
-      referrerPolicy="no-referrer"
-      loading="lazy"
-      decoding="async"
-    />
+    <span className={`relative block overflow-hidden bg-[#0c1c2a] ${frameClass}`}>
+      {showFallback && (
+        <span
+          role={alt ? "img" : undefined}
+          aria-label={alt || undefined}
+          aria-hidden={alt ? undefined : true}
+          className="atlas-image-fallback absolute inset-0 grid place-items-center"
+        >
+          <span aria-hidden="true" className="font-serif text-xs tracking-[0.3em] text-[#d4a853]/45">ATLAS</span>
+        </span>
+      )}
+      {src && !showFallback && (
+        <img
+          key={src}
+          src={src}
+          alt={alt}
+          className={`relative z-[1] h-full w-full object-cover ${className ?? ""}`}
+          referrerPolicy="no-referrer"
+          loading="lazy"
+          decoding="async"
+          onError={() => setFailedSrc(src)}
+        />
+      )}
+    </span>
   );
 }
 

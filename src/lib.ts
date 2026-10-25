@@ -42,22 +42,105 @@ export const emptyProgress = (): Progress => ({
   sessions: [],
 });
 
+const CAPITAL_IDS = new Set(capitals.map((c) => c.id));
+const MODES = new Set<Mode>(["choice", "type", "reverse", "blitz", "exam", "map", "review"]);
+const REGION_IDS = new Set<RegionId>([
+  "all", "west", "north", "south", "central", "east", "balkans", "micro", "school",
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function safeInteger(value: unknown, fallback = 0, max = 1_000_000_000) {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isSafeInteger(n) ? Math.max(0, Math.min(max, n)) : fallback;
+}
+
+function isDateKey(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+/** Validate local/imported data so stale or hand-edited JSON cannot break the UI. */
+function sanitizeProgress(value: unknown): Progress {
+  if (!isRecord(value)) return emptyProgress();
+  const source = isRecord(value.progress) ? value.progress : value;
+  const mastery: Record<string, number> = {};
+  const seen: Record<string, number> = {};
+  const correct: Record<string, number> = {};
+  const srs: Record<string, SrsCard> = {};
+
+  if (isRecord(source.mastery)) {
+    for (const [id, raw] of Object.entries(source.mastery)) {
+      if (CAPITAL_IDS.has(id) && typeof raw === "number" && Number.isFinite(raw)) {
+        mastery[id] = clampMastery(raw);
+      }
+    }
+  }
+  for (const [field, target] of [["seen", seen], ["correct", correct]] as const) {
+    const records = source[field];
+    if (!isRecord(records)) continue;
+    for (const [id, raw] of Object.entries(records)) {
+      if (CAPITAL_IDS.has(id)) target[id] = safeInteger(raw);
+    }
+  }
+  if (isRecord(source.srs)) {
+    for (const [id, raw] of Object.entries(source.srs)) {
+      if (!CAPITAL_IDS.has(id) || !isRecord(raw) || !isDateKey(raw.due)) continue;
+      srs[id] = { due: raw.due, box: safeInteger(raw.box, 0, REVIEW_STEPS.length) };
+    }
+  }
+
+  const sessions = Array.isArray(source.sessions)
+    ? source.sessions
+        .filter((session): session is Record<string, unknown> => isRecord(session))
+        .filter(
+          (session) =>
+            typeof session.date === "string" &&
+            Number.isFinite(Date.parse(session.date)) &&
+            typeof session.mode === "string" && MODES.has(session.mode as Mode) &&
+            typeof session.region === "string" && REGION_IDS.has(session.region as RegionId)
+        )
+        .slice(0, 20)
+        .map((session): SessionRecord => ({
+          date: session.date as string,
+          mode: session.mode as Mode,
+          region: session.region as RegionId,
+          score: safeInteger(session.score),
+          total: safeInteger(session.total),
+          points: safeInteger(session.points),
+        }))
+    : [];
+
+  return {
+    mastery,
+    seen,
+    correct,
+    srs,
+    sessions,
+    totalPoints: safeInteger(source.totalPoints),
+    bestStreak: safeInteger(source.bestStreak),
+    totalSessions: Math.max(safeInteger(source.totalSessions), sessions.length),
+  };
+}
+
 export function loadProgress(): Progress {
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return emptyProgress();
-    const p = { ...emptyProgress(), ...JSON.parse(raw) } as Progress;
-    // history is capped at 20 records; keep the lifetime counter at least equal to what is stored
-    p.totalSessions = Math.max(Number(p.totalSessions) || 0, p.sessions.length);
-    if (!p.srs || typeof p.srs !== "object") p.srs = {};
-    return p;
+    return raw ? sanitizeProgress(JSON.parse(raw)) : emptyProgress();
   } catch {
     return emptyProgress();
   }
 }
 
 export function saveProgress(p: Progress) {
-  localStorage.setItem(KEY, JSON.stringify(p));
+  try {
+    localStorage.setItem(KEY, JSON.stringify(sanitizeProgress(p)));
+  } catch {
+    // Storage can be disabled or full; the learning session should still continue.
+  }
 }
 
 export function shuffle<T>(arr: T[]): T[] {
@@ -106,11 +189,12 @@ export function distractors(item: Capital, pool: Capital[], n = 2): Capital[] {
   return pickN(source, n);
 }
 
-export function capitalOfTheDay(): Capital {
-  const d = new Date();
-  const start = new Date(d.getFullYear(), 0, 0);
-  const day = Math.floor((d.getTime() - start.getTime()) / 86400000);
-  return capitals[day % capitals.length];
+export function capitalOfTheDay(dateKey = todayKey()): Capital {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  if (!isDateKey(dateKey)) return capitals[0];
+  // Use UTC calendar days so DST and the visitor's timezone cannot shift the daily card.
+  const dayIndex = Math.floor((Date.UTC(year, month - 1, day) - Date.UTC(year, 0, 1)) / 86400000);
+  return capitals[dayIndex % capitals.length];
 }
 
 export function todayKey() {
@@ -135,8 +219,9 @@ export function scheduleReview(card: SrsCard | undefined, ok: boolean, today = t
 }
 
 export function dueIds(p: Progress, today = todayKey()): string[] {
-  return Object.entries(p.srs)
-    .filter(([, card]) => card && typeof card.due === "string" && card.due <= today)
+  if (!isDateKey(today)) return [];
+  return Object.entries(p.srs ?? {})
+    .filter(([id, card]) => CAPITAL_IDS.has(id) && card && isDateKey(card.due) && card.due <= today)
     .map(([id]) => id);
 }
 
@@ -155,16 +240,13 @@ export function exportProgress(p: Progress) {
 
 export function importProgress(raw: string): Progress | null {
   try {
-    const data = JSON.parse(raw);
-    const incoming = (data && typeof data === "object" && "progress" in data ? data.progress : data) as
-      | Partial<Progress>
-      | null;
-    if (!incoming || typeof incoming !== "object") return null;
-    const merged: Progress = { ...emptyProgress(), ...incoming };
-    if (!merged.srs || typeof merged.srs !== "object") merged.srs = {};
-    merged.sessions = Array.isArray(merged.sessions) ? merged.sessions.slice(0, 20) : [];
-    merged.totalSessions = Math.max(Number(merged.totalSessions) || 0, merged.sessions.length);
-    return merged;
+    const data: unknown = JSON.parse(raw);
+    if (!isRecord(data)) return null;
+    const incoming = isRecord(data.progress) ? data.progress : data;
+    const hasProgressData = ["mastery", "seen", "correct", "srs", "sessions", "totalPoints", "totalSessions"].some(
+      (key) => key in incoming
+    );
+    return hasProgressData ? sanitizeProgress(incoming) : null;
   } catch {
     return null;
   }
