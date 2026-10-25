@@ -17,6 +17,7 @@ export interface Progress {
   correct: Record<string, number>;
   totalPoints: number;
   bestStreak: number;
+  totalSessions: number;
   sessions: SessionRecord[];
 }
 
@@ -28,6 +29,7 @@ export const emptyProgress = (): Progress => ({
   correct: {},
   totalPoints: 0,
   bestStreak: 0,
+  totalSessions: 0,
   sessions: [],
 });
 
@@ -35,7 +37,10 @@ export function loadProgress(): Progress {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return emptyProgress();
-    return { ...emptyProgress(), ...JSON.parse(raw) };
+    const p = { ...emptyProgress(), ...JSON.parse(raw) } as Progress;
+    // history is capped at 20 records; keep the lifetime counter at least equal to what is stored
+    p.totalSessions = Math.max(Number(p.totalSessions) || 0, p.sessions.length);
+    return p;
   } catch {
     return emptyProgress();
   }

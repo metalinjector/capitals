@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { REGIONS, filterCapitals, type RegionId } from "./data/capitals";
-import { cellsOf, generatePuzzle, maskFact, type Dir, type Entry, type Puzzle } from "./crosswordGen";
+import { cellsOf, factClue, generatePuzzle, type Dir, type Entry, type Puzzle } from "./crosswordGen";
 
 const SIZES = [
   { id: "mini", title: "Мини", words: 7, max: 11, hint: "7 слов · разминка" },
@@ -10,6 +10,39 @@ const SIZES = [
 
 type SizeId = (typeof SIZES)[number]["id"];
 type ClueMode = "country" | "fact";
+
+const STORE_KEY = "atlas-europa-crossword-v1";
+
+/** Everything needed to bring an unfinished puzzle back after switching sections. */
+interface SavedCrossword {
+  region: RegionId;
+  size: SizeId;
+  clueMode: ClueMode;
+  puzzle: Puzzle;
+  values: Record<string, string>;
+  revealed: Record<string, true>;
+  sel: { r: number; c: number } | null;
+  dir: Dir;
+  seconds: number;
+  solved: boolean;
+  showCountry: Record<string, true>;
+}
+
+function loadSavedCrossword(): SavedCrossword | null {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw) as SavedCrossword;
+    if (!s || !Array.isArray(s.puzzle?.grid) || !Array.isArray(s.puzzle?.entries) || s.puzzle.entries.length === 0) {
+      return null;
+    }
+    if (typeof s.puzzle.rows !== "number" || typeof s.puzzle.cols !== "number") return null;
+    if (!s.puzzle.grid.length || s.puzzle.grid.some((row) => !Array.isArray(row))) return null;
+    return s;
+  } catch {
+    return null;
+  }
+}
 
 const LAT_TO_RU: Record<string, string> = {
   q: "Й", w: "Ц", e: "У", r: "К", t: "Е", y: "Н", u: "Г", i: "Ш", o: "Щ", p: "З", "[": "Х", "]": "Ъ",
@@ -44,7 +77,9 @@ export default function Crossword({ onSolved }: { onSolved: (points: number) => 
   function newPuzzle(r = region, s = size) {
     const cfg = SIZES.find((x) => x.id === s)!;
     const pool = filterCapitals(r);
-    const p = generatePuzzle(pool, Math.min(cfg.words, pool.length), cfg.max, Date.now() ^ Math.floor(Math.random() * 1e9));
+    // Date.now() ^ ... is a signed 32-bit integer and can be negative; keep the seed unsigned
+    const seed = (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0;
+    const p = generatePuzzle(pool, Math.min(cfg.words, pool.length), cfg.max, seed);
     setPuzzle(p);
     setValues({});
     setRevealed({});
@@ -61,10 +96,53 @@ export default function Crossword({ onSolved }: { onSolved: (points: number) => 
     setTimeout(() => inputRef.current?.focus(), 60);
   }
 
+  // An unfinished grid survives switching to another section and coming back:
+  // restore the saved board instead of generating a new one.
   useEffect(() => {
+    const saved = loadSavedCrossword();
+    if (saved) {
+      setRegion(saved.region);
+      setSize(SIZES.some((x) => x.id === saved.size) ? saved.size : "classic");
+      setClueMode(saved.clueMode === "fact" ? "fact" : "country");
+      setPuzzle(saved.puzzle);
+      setValues(saved.values ?? {});
+      setRevealed(saved.revealed ?? {});
+      setSel(saved.sel ?? null);
+      setDir(saved.dir === "down" ? "down" : "across");
+      setSeconds(Number.isFinite(saved.seconds) ? Math.max(0, Math.trunc(saved.seconds)) : 0);
+      setSolved(Boolean(saved.solved));
+      setShowCountry(saved.showCountry ?? {});
+      rewarded.current = Boolean(saved.solved);
+      return;
+    }
     newPuzzle();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!puzzle) return;
+    const snapshot: SavedCrossword = {
+      region,
+      size,
+      clueMode,
+      puzzle,
+      values,
+      revealed,
+      sel,
+      dir,
+      seconds,
+      solved,
+      showCountry,
+    };
+    const t = window.setTimeout(() => {
+      try {
+        localStorage.setItem(STORE_KEY, JSON.stringify(snapshot));
+      } catch {
+        /* storage disabled or full — the puzzle still works in memory */
+      }
+    }, 400);
+    return () => window.clearTimeout(t);
+  }, [puzzle, values, revealed, sel, dir, seconds, solved, showCountry, region, size, clueMode]);
 
   useEffect(() => {
     if (!puzzle || solved) return;
@@ -159,15 +237,26 @@ export default function Crossword({ onSolved }: { onSolved: (points: number) => 
     selectEntry(next);
   }
 
-  function typeLetter(ch: string) {
-    if (!sel || solved) return;
-    const key = k(sel.r, sel.c);
-    if (revealed[key]) {
-      step(1);
-      return;
+  /** Type a whole string at once: one key press or a pasted word fill consecutive cells. */
+  function typeText(text: string) {
+    if (!sel || solved || !active) return;
+    const cells = cellsOf(active);
+    let idx = cells.findIndex(([r, c]) => r === sel.r && c === sel.c);
+    if (idx < 0) return;
+    const nextValues = { ...values };
+    let wrote = false;
+    for (const ch of text) {
+      while (idx < cells.length && revealed[k(cells[idx][0], cells[idx][1])]) idx += 1;
+      const cell = cells[idx];
+      if (!cell) break;
+      nextValues[k(cell[0], cell[1])] = ch;
+      wrote = true;
+      idx += 1;
     }
-    setValues((v) => ({ ...v, [key]: ch }));
-    step(1);
+    if (!wrote) return;
+    setValues(nextValues);
+    const nextCell = cells[idx];
+    if (nextCell) setSel({ r: nextCell[0], c: nextCell[1] });
   }
 
   function erase() {
@@ -228,12 +317,12 @@ export default function Crossword({ onSolved }: { onSolved: (points: number) => 
   }
 
   function onInput(e: React.FormEvent<HTMLInputElement>) {
-    const val = (e.target as HTMLInputElement).value;
-    (e.target as HTMLInputElement).value = "";
-    for (const ch of val) {
-      const cy = toCyr(ch);
-      if (cy) typeLetter(cy);
-    }
+    const input = e.target as HTMLInputElement;
+    const val = input.value;
+    input.value = "";
+    const letters = [...val].map(toCyr).filter((ch): ch is string => Boolean(ch));
+    if (letters.length === 0) return;
+    typeText(letters.join(""));
   }
 
   function revealCell() {
@@ -260,9 +349,7 @@ export default function Crossword({ onSolved }: { onSolved: (points: number) => 
 
   function clueText(e: Entry) {
     if (clueMode === "country") return `${e.capital.flag} Столица: ${e.capital.country}`;
-    const facts = e.capital.facts;
-    const f = facts[(e.num + puzzle!.seed) % facts.length];
-    return maskFact(f, e.capital);
+    return factClue(e.capital, e.num, puzzle!.seed);
   }
 
   const across = puzzle.entries.filter((e) => e.dir === "across");

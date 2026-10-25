@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Component, useEffect, useMemo, useRef, useState } from "react";
 import { capitals, REGIONS, type Capital, type RegionId } from "./data/capitals";
 import { britannicaUrl, photosOf, wikipediaUrl } from "./wiki";
 import Crossword from "./Crossword";
@@ -28,17 +28,36 @@ import {
 type View = "home" | "setup" | "quiz" | "atlas" | "card" | "stats" | "results" | "crossword";
 
 const COUNTS = [8, 12, 20] as const;
+const VIEWS: View[] = ["home", "setup", "quiz", "atlas", "card", "stats", "results", "crossword"];
+
+/** Sections have their own URLs, so direct links and the browser Back button work. */
+function parseHash(hash: string): { view: View; focusId: string | null } {
+  const raw = hash.replace(/^#\/?/, "");
+  if (raw.startsWith("card/")) {
+    const id = raw.slice("card/".length);
+    if (id && capitals.some((c) => c.id === id)) return { view: "card", focusId: id };
+    return { view: "atlas", focusId: null };
+  }
+  const view = (VIEWS as string[]).includes(raw) ? (raw as View) : "home";
+  return { view, focusId: null };
+}
+
+function hashFor(view: View, focusId: string | null) {
+  if (view === "card" && focusId) return `#/card/${focusId}`;
+  return `#/${view}`;
+}
 
 export default function App() {
-  const [view, setView] = useState<View>("home");
+  const [view, setView] = useState<View>(() => parseHash(window.location.hash).view);
+  const [focusId, setFocusId] = useState<string | null>(() => parseHash(window.location.hash).focusId);
   const [mode, setMode] = useState<Mode>("choice");
   const [region, setRegion] = useState<RegionId>("school");
   const [count, setCount] = useState<number | "all">(12);
   const [progress, setProgress] = useState<Progress>(emptyProgress);
   const [sound, setSound] = useState(true);
-  const [focusId, setFocusId] = useState<string | null>(null);
   const [result, setResult] = useState<QuizResult | null>(null);
   const [dailyDone, setDailyDone] = useState(false);
+  const lastHash = useRef<string | null>(null);
 
   useEffect(() => {
     setProgress(loadProgress());
@@ -48,6 +67,33 @@ export default function App() {
   useEffect(() => {
     saveProgress(progress);
   }, [progress]);
+
+  useEffect(() => {
+    const next = hashFor(view, focusId);
+    lastHash.current = next;
+    if (window.location.hash !== next) window.history.pushState(null, "", next);
+  }, [view, focusId]);
+
+  useEffect(() => {
+    function onHash() {
+      if (window.location.hash === lastHash.current) return;
+      const next = parseHash(window.location.hash);
+      lastHash.current = window.location.hash;
+      setView(next.view);
+      setFocusId(next.focusId);
+    }
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  function markDailyRead() {
+    try {
+      localStorage.setItem("atlas-daily", todayKey());
+    } catch {
+      /* ignore */
+    }
+    setDailyDone(true);
+  }
 
   const known = Object.values(progress.mastery).filter((m) => m >= 3).length;
   const daily = capitalOfTheDay();
@@ -85,96 +131,142 @@ export default function App() {
       />
 
       <main className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-20 pt-36 sm:px-6 sm:pt-24">
-        {view === "home" && (
-          <Home
-            progress={progress}
-            daily={daily}
-            dailyDone={dailyDone}
-            onOpenDaily={() => {
-              setFocusId(daily.id);
-              setView("card");
-            }}
-            onMode={(m) => {
-              setMode(m);
-              setView("setup");
-            }}
-            onAtlas={() => setView("atlas")}
-            onStats={() => setView("stats")}
-            onCrossword={() => setView("crossword")}
-          />
-        )}
-        {view === "crossword" && (
-          <Crossword
-            onSolved={(pts) =>
-              setProgress((p) => ({ ...p, totalPoints: p.totalPoints + pts }))
-            }
-          />
-        )}
-        {view === "setup" && (
-          <Setup
-            mode={mode}
-            region={region}
-            count={count}
-            onRegion={setRegion}
-            onCount={setCount}
-            onBack={() => setView("home")}
-            onStart={() => start(mode, region, mode === "exam" ? 15 : mode === "blitz" ? 30 : count)}
-          />
-        )}
-        {view === "quiz" && (
-          <Quiz
-            mode={mode}
-            region={region}
-            count={mode === "exam" ? 15 : mode === "blitz" ? 40 : count}
-            sound={sound}
-            progress={progress}
-            setProgress={setProgress}
-            onExit={goHome}
-            onDone={(r) => {
-              setResult(r);
-              if (r.mode === "exam") localStorage.setItem("atlas-daily", todayKey());
-              setView("results");
-            }}
-          />
-        )}
-        {view === "atlas" && (
-          <Atlas
-            progress={progress}
-            onOpen={(id) => {
-              setFocusId(id);
-              setView("card");
-            }}
-          />
-        )}
-        {view === "card" && focusId && (
-          <CapitalPage
-            id={focusId}
-            progress={progress}
-            onBack={() => setView("atlas")}
-            onQuiz={() => {
-              const item = capitals.find((c) => c.id === focusId);
-              if (!item) return;
-              setMode("type");
-              setRegion("all");
-              setCount(1);
-              start("choice", item.region, 8);
-            }}
-          />
-        )}
-        {view === "stats" && (
-          <Stats progress={progress} onReset={() => setProgress(emptyProgress())} />
-        )}
-        {view === "results" && result && (
-          <Results
-            result={result}
-            onHome={goHome}
-            onRetry={() => start(result.mode, result.region, result.count)}
-            onAtlas={() => setView("atlas")}
-          />
-        )}
+        <SectionBoundary key={`${view}:${focusId ?? ""}`} onReset={goHome}>
+          {view === "home" && (
+            <Home
+              progress={progress}
+              daily={daily}
+              dailyDone={dailyDone}
+              onOpenDaily={() => {
+                setFocusId(daily.id);
+                setView("card");
+                markDailyRead();
+              }}
+              onMode={(m) => {
+                setMode(m);
+                setView("setup");
+              }}
+              onAtlas={() => setView("atlas")}
+              onStats={() => setView("stats")}
+              onCrossword={() => setView("crossword")}
+            />
+          )}
+          {view === "crossword" && (
+            <Crossword
+              onSolved={(pts) =>
+                setProgress((p) => ({ ...p, totalPoints: p.totalPoints + pts }))
+              }
+            />
+          )}
+          {view === "setup" && (
+            <Setup
+              mode={mode}
+              region={region}
+              count={count}
+              onRegion={setRegion}
+              onCount={setCount}
+              onBack={() => setView("home")}
+              onStart={() => start(mode, region, mode === "exam" ? 15 : mode === "blitz" ? 30 : count)}
+            />
+          )}
+          {view === "quiz" && (
+            <Quiz
+              mode={mode}
+              region={region}
+              count={mode === "exam" ? 15 : mode === "blitz" ? 40 : count}
+              sound={sound}
+              progress={progress}
+              setProgress={setProgress}
+              onExit={goHome}
+              onDone={(r) => {
+                setResult(r);
+                setView("results");
+              }}
+            />
+          )}
+          {view === "atlas" && (
+            <Atlas
+              progress={progress}
+              onOpen={(id) => {
+                setFocusId(id);
+                setView("card");
+              }}
+            />
+          )}
+          {view === "card" && focusId && (
+            <CapitalPage
+              id={focusId}
+              progress={progress}
+              onBack={() => setView("atlas")}
+              onQuiz={() => {
+                const item = capitals.find((c) => c.id === focusId);
+                if (!item) return;
+                setMode("type");
+                setRegion("all");
+                setCount(1);
+                start("choice", item.region, 8);
+              }}
+            />
+          )}
+          {view === "stats" && (
+            <Stats progress={progress} onReset={() => setProgress(emptyProgress())} />
+          )}
+          {view === "results" && result && (
+            <Results
+              result={result}
+              onHome={goHome}
+              onRetry={() => start(result.mode, result.region, result.count)}
+              onAtlas={() => setView("atlas")}
+            />
+          )}
+        </SectionBoundary>
       </main>
     </div>
   );
+}
+
+/**
+ * A failure inside one section must not blank the whole site:
+ * show a short message and keep the navigation alive.
+ */
+class SectionBoundary extends Component<
+  { onReset: () => void; children: React.ReactNode },
+  { error: Error | null }
+> {
+  state: { error: Error | null } = { error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="glass mx-auto max-w-xl rounded-3xl p-8 text-center">
+          <div className="font-serif text-3xl">Раздел не открылся</div>
+          <p className="mt-3 break-words text-sm text-[#f4ead5]/70">{this.state.error.message}</p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <button
+              onClick={() => {
+                this.setState({ error: null });
+                this.props.onReset();
+              }}
+              className="rounded-full bg-[#d4a853] px-6 py-2.5 text-sm font-semibold text-[#071018]"
+            >
+              На главную
+            </button>
+            <button
+              onClick={() => this.setState({ error: null })}
+              className="rounded-full border border-[#e8d5a3]/30 px-6 py-2.5 text-sm"
+            >
+              Попробовать снова
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 function Header({
@@ -448,7 +540,7 @@ function Home({
             onClick={() => onMode("blitz")}
           />
           <ModeCard
-            kicker="15 вопросов"
+            kicker="до 15 вопросов"
             title="Экзамен"
             text="Смесь режимов, оценка в конце, слабые места подсветим. Почти как у доски, только без мела."
             icon="★"
@@ -579,7 +671,13 @@ function Setup({
           </div>
         </div>
       )}
-      {exam && <p className="mt-8 text-sm text-[#e8d5a3]/70">Экзамен всегда из 15 вопросов: и выбор, и ввод слова.</p>}
+      {exam && (
+        <p className="mt-8 text-sm text-[#e8d5a3]/70">
+          {pool.length >= 15
+            ? "Экзамен из 15 вопросов: и выбор, и ввод слова."
+            : `В этом регионе ${pool.length} ${plural(pool.length, "столица", "столицы", "столиц")} — экзамен будет из ${pool.length}: и выбор, и ввод слова.`}
+        </p>
+      )}
       {blitz && <p className="mt-8 text-sm text-[#e8d5a3]/70">Минута на всё. Очки растут с комбо. Ошибки не останавливают часы.</p>}
 
       <button
@@ -642,7 +740,7 @@ function Quiz({
   onExit: () => void;
   onDone: (r: QuizResult) => void;
 }) {
-  const deck = useMemo(() => buildDeck(region, count), [region, count]);
+  const [deck, setDeck] = useState<Capital[]>(() => buildDeck(region, count));
   const pool = useMemo(() => filterCapitals(region), [region]);
   const [i, setI] = useState(0);
   const [points, setPoints] = useState(0);
@@ -670,6 +768,15 @@ function Quiz({
     if (!item || isType) return [];
     return shuffle([item, ...distractors(item, pool.length > 3 ? pool : capitals, 2)]);
   }, [item?.id, isType, pool]);
+
+  const deckKey = `${region}:${count}`;
+  const deckKeyRef = useRef(deckKey);
+  useEffect(() => {
+    if (deckKeyRef.current === deckKey) return;
+    deckKeyRef.current = deckKey;
+    setDeck(buildDeck(region, count));
+    setI(0);
+  }, [deckKey, region, count]);
 
   useEffect(() => {
     if (mode !== "blitz") return;
@@ -796,8 +903,11 @@ function Quiz({
     const next = hints + 1;
     setHints(next);
     const word = isReverse ? item.country : item.capital;
+    const prevHint = firstLetters(word, hints);
     setTyped((t) => {
-      const nextVal = t.trim() ? t : firstLetters(word, next);
+      // the field may still hold only the previous hint — extend it; keep anything the player typed
+      const untouched = !t.trim() || t === prevHint;
+      const nextVal = untouched ? firstLetters(word, next) : t;
       typedRef.current = nextVal;
       return nextVal;
     });
@@ -812,8 +922,19 @@ function Quiz({
 
   function advance() {
     if (i + 1 >= deck.length) {
-      finishRun();
-      return;
+      // Blitz runs on the clock, not on a finite deck: build the next round on the fly.
+      if (mode === "blitz") {
+        const more = buildDeck(region, "all").filter((c) => c.id !== item.id);
+        if (more.length > 0) {
+          setDeck((d) => [...d, ...more]);
+        } else {
+          finishRun();
+          return;
+        }
+      } else {
+        finishRun();
+        return;
+      }
     }
     live.current.i = i + 1;
     setI((x) => x + 1);
@@ -832,6 +953,7 @@ function Quiz({
       ...prev,
       totalPoints: prev.totalPoints + L.points,
       bestStreak: Math.max(prev.bestStreak, L.best),
+      totalSessions: (prev.totalSessions || 0) + 1,
       sessions: [
         {
           date: new Date().toISOString(),
@@ -1000,7 +1122,6 @@ function Quiz({
                   <span className="grid h-8 w-8 place-items-center rounded-full border border-white/15 text-xs text-[#e8d5a3]/70">
                     {idx + 1}
                   </span>
-                  <span className="text-2xl">{opt.flag}</span>
                   <span className="font-serif text-2xl">{isReverse ? opt.country : opt.capital}</span>
                 </button>
               );
@@ -1010,8 +1131,9 @@ function Quiz({
 
         {status !== "idle" && (
           <div className="mt-8 animate-rise rounded-2xl border border-[#e8d5a3]/15 bg-black/20 p-5">
-            <div className={`font-serif text-2xl ${status === "ok" ? "text-teal-300" : "text-rose-300"}`}>
-              {status === "ok" ? "Верно!" : `Это ${item.capital}, ${item.country}`}
+            <div className={`flex items-center gap-3 font-serif text-2xl ${status === "ok" ? "text-teal-300" : "text-rose-300"}`}>
+              <span className="text-3xl">{item.flag}</span>
+              <span>{status === "ok" ? "Верно!" : `Это ${item.capital}, ${item.country}`}</span>
             </div>
             <p className="mt-2 text-sm leading-relaxed text-[#f4ead5]/80">{item.facts[i % item.facts.length]}</p>
             {mode !== "blitz" && (
@@ -1257,7 +1379,9 @@ function Info({ label, value }: { label: string; value: string }) {
 
 function Stats({ progress, onReset }: { progress: Progress; onReset: () => void }) {
   const rows = [...capitals].sort((a, b) => (progress.mastery[a.id] || 0) - (progress.mastery[b.id] || 0));
-  const weak = rows.filter((c) => (progress.seen[c.id] || 0) > 0).slice(0, 8);
+  const weak = rows
+    .filter((c) => (progress.seen[c.id] || 0) > 0 && (progress.mastery[c.id] || 0) < 3)
+    .slice(0, 8);
   const strong = [...capitals]
     .sort((a, b) => (progress.mastery[b.id] || 0) - (progress.mastery[a.id] || 0))
     .filter((c) => (progress.mastery[c.id] || 0) >= 3)
@@ -1272,7 +1396,7 @@ function Stats({ progress, onReset }: { progress: Progress; onReset: () => void 
       <div className="grid gap-4 sm:grid-cols-3">
         <StatBox k="очки" v={String(progress.totalPoints)} />
         <StatBox k="рекорд серии" v={String(progress.bestStreak)} />
-        <StatBox k="сессий" v={String(progress.sessions.length)} />
+        <StatBox k="сессий" v={String(progress.totalSessions || progress.sessions.length)} />
       </div>
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="glass rounded-3xl p-6">

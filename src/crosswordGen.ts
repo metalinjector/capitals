@@ -239,10 +239,12 @@ export function cellsOf(e: Entry): [number, number][] {
 }
 
 /** Hide the capital's name (and its inflected forms) inside a fact so it can be a clue. */
-export function maskFact(fact: string, cap: Capital) {
+export function maskFact(fact: string | null | undefined, cap: Capital) {
+  if (typeof fact !== "string" || !fact.trim()) return "";
   const names = [cap.capital, cap.capitalEn, cap.native, ...cap.aliases];
   let out = fact;
   for (const name of names) {
+    if (!name) continue;
     const clean = name.replace(/[()]/g, "");
     if (clean.length < 3) continue;
     const stemLen = Math.max(3, clean.length - (clean.length > 5 ? 2 : 1));
@@ -250,4 +252,19 @@ export function maskFact(fact: string, cap: Capital) {
     out = out.replace(new RegExp(`${stem}[\\p{L}-]*`, "giu"), "＿＿＿");
   }
   return out;
+}
+
+/**
+ * Pick a stable fact for a clue. The index is normalised to the fact list length,
+ * so a negative seed (Date.now() ^ random is a signed 32-bit int) can never produce
+ * undefined — the old code crashed on `maskFact(undefined)`.
+ */
+export function factClue(cap: Capital, num: number, seed: number) {
+  const facts = (cap.facts ?? []).filter((f) => typeof f === "string" && f.trim().length > 0);
+  if (facts.length === 0) return `Столица страны: ${cap.country}`;
+  const offset = Number.isFinite(seed) ? Math.trunc(seed) : 0;
+  const raw = num + offset;
+  const idx = ((raw % facts.length) + facts.length) % facts.length;
+  const masked = maskFact(facts[idx], cap);
+  return masked.trim() ? masked : `Столица страны: ${cap.country}`;
 }
