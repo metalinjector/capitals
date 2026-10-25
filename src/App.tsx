@@ -491,18 +491,21 @@ function Home({
   return (
     <div className="space-y-12">
       <section className="relative overflow-hidden rounded-[2rem] border border-[#e8d5a3]/15 shadow-2xl shadow-black/40">
+        {/* Keep the bottom-aligned hero copy inside the crop on the narrowest phones. */}
         <img
           src="/images/hero.jpg"
           alt="Пейзаж Европы — заставка интерактивного атласа"
           fetchPriority="high"
           decoding="async"
-          className="h-[34rem] w-full object-cover sm:h-[32rem]"
+          className="h-[34rem] w-full object-cover max-[395px]:h-[clamp(41rem,calc(89rem_-_240vw),47rem)] sm:h-[32rem]"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-[#071018] via-[#071018]/75 to-[#071018]/20" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#071018] via-transparent to-[#071018]/40" />
         <div className="absolute inset-0 flex flex-col justify-end p-6 sm:p-12">
-          <p className="animate-rise mb-3 text-xs uppercase tracking-[0.3em] text-[#d4a853] sm:tracking-[0.42em]">
-            интерактивный атлас · 45 стран · {totalFacts} фактов
+          <p className="animate-rise mb-3 flex w-full min-w-0 max-w-full flex-wrap items-center gap-x-2 text-xs uppercase tracking-[clamp(0.1em,calc(3vw_-_6.7px),0.3em)] text-[#d4a853] sm:tracking-[0.42em]">
+            <span className="whitespace-nowrap">интерактивный атлас</span>
+            <span className="whitespace-nowrap">· 45 стран</span>
+            <span className="whitespace-nowrap">· {totalFacts} фактов</span>
           </p>
           <h1 className="animate-rise max-w-4xl font-serif text-4xl font-semibold leading-[0.95] sm:text-7xl">
             Открой Европу
