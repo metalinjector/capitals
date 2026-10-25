@@ -2,33 +2,40 @@ import { Component, useEffect, useMemo, useRef, useState } from "react";
 import { capitals, REGIONS, type Capital, type RegionId } from "./data/capitals";
 import { britannicaUrl, photosOf, wikipediaUrl } from "./wiki";
 import Crossword from "./Crossword";
+import EuropeMap from "./EuropeMap";
+import { MAP_IDS } from "./data/europeMap";
 import {
-  buildDeck,
+  buildDeckFromIds,
   capitalOfTheDay,
   clampMastery,
   distractors,
+  dueIds,
   emptyProgress,
+  exportProgress,
   filterCapitals,
   gradeLabel,
   isCapitalMatch,
+  importProgress,
   isCountryMatch,
   loadProgress,
   modeTitle,
+  pickN,
   playCorrect,
   playHint,
   playWin,
   playWrong,
   saveProgress,
+  scheduleReview,
   shuffle,
   todayKey,
   type Mode,
   type Progress,
 } from "./lib";
 
-type View = "home" | "setup" | "quiz" | "atlas" | "card" | "stats" | "results" | "crossword";
+type View = "home" | "setup" | "quiz" | "atlas" | "card" | "map" | "stats" | "results" | "crossword";
 
 const COUNTS = [8, 12, 20] as const;
-const VIEWS: View[] = ["home", "setup", "quiz", "atlas", "card", "stats", "results", "crossword"];
+const VIEWS: View[] = ["home", "setup", "quiz", "atlas", "card", "map", "stats", "results", "crossword"];
 
 /** Sections have their own URLs, so direct links and the browser Back button work. */
 function parseHash(hash: string): { view: View; focusId: string | null } {
@@ -57,6 +64,7 @@ export default function App() {
   const [sound, setSound] = useState(true);
   const [result, setResult] = useState<QuizResult | null>(null);
   const [dailyDone, setDailyDone] = useState(false);
+  const [customIds, setCustomIds] = useState<string[] | null>(null);
   const lastHash = useRef<string | null>(null);
 
   useEffect(() => {
@@ -98,10 +106,11 @@ export default function App() {
   const known = Object.values(progress.mastery).filter((m) => m >= 3).length;
   const daily = capitalOfTheDay();
 
-  function start(m: Mode, r = region, c: number | "all" = count) {
+  function start(m: Mode, r = region, c: number | "all" = count, ids: string[] | null = null) {
     setMode(m);
     setRegion(r);
     setCount(c);
+    setCustomIds(ids);
     setView("quiz");
   }
 
@@ -137,6 +146,7 @@ export default function App() {
               progress={progress}
               daily={daily}
               dailyDone={dailyDone}
+              dueCount={dueIds(progress).length}
               onOpenDaily={() => {
                 setFocusId(daily.id);
                 setView("card");
@@ -149,6 +159,10 @@ export default function App() {
               onAtlas={() => setView("atlas")}
               onStats={() => setView("stats")}
               onCrossword={() => setView("crossword")}
+              onReview={() => {
+                const due = dueIds(progress);
+                start("review", "all", due.length, due);
+              }}
             />
           )}
           {view === "crossword" && (
@@ -173,6 +187,7 @@ export default function App() {
             <Quiz
               mode={mode}
               region={region}
+              ids={customIds}
               count={mode === "exam" ? 15 : mode === "blitz" ? 40 : count}
               sound={sound}
               progress={progress}
@@ -181,6 +196,15 @@ export default function App() {
               onDone={(r) => {
                 setResult(r);
                 setView("results");
+              }}
+            />
+          )}
+          {view === "map" && (
+            <MapView
+              progress={progress}
+              onOpen={(id) => {
+                setFocusId(id);
+                setView("card");
               }}
             />
           )}
@@ -209,13 +233,25 @@ export default function App() {
             />
           )}
           {view === "stats" && (
-            <Stats progress={progress} onReset={() => setProgress(emptyProgress())} />
+            <Stats
+              progress={progress}
+              onReset={() => setProgress(emptyProgress())}
+              onImport={(p) => setProgress(p)}
+            />
           )}
           {view === "results" && result && (
             <Results
               result={result}
               onHome={goHome}
               onRetry={() => start(result.mode, result.region, result.count)}
+              onMissed={() =>
+                start(
+                  "review",
+                  result.region,
+                  result.missed.length,
+                  result.missed.map((c) => c.id)
+                )
+              }
               onAtlas={() => setView("atlas")}
             />
           )}
@@ -300,7 +336,7 @@ function Header({
             </div>
           </div>
         </button>
-        <nav className="glass flex w-full items-center justify-between gap-0 rounded-full p-1 sm:w-auto sm:gap-1">
+        <nav className="glass flex w-full items-center justify-between gap-0 overflow-x-auto rounded-full p-1 sm:w-auto sm:gap-1">
           <NavBtn active={view === "home" || view === "setup" || view === "quiz"} onClick={() => onNav("home")}>
             Квиз
           </NavBtn>
@@ -310,12 +346,15 @@ function Header({
           <NavBtn active={view === "atlas" || view === "card"} onClick={() => onNav("atlas")}>
             Атлас
           </NavBtn>
+          <NavBtn active={view === "map"} onClick={() => onNav("map")}>
+            Карта
+          </NavBtn>
           <NavBtn active={view === "stats"} onClick={() => onNav("stats")}>
             Прогресс
           </NavBtn>
           <button
             onClick={onSound}
-            className="ml-1 grid h-9 w-9 place-items-center rounded-full text-sm text-[#e8d5a3]/80 hover:bg-white/5"
+            className="ml-1 hidden h-9 w-9 place-items-center rounded-full text-sm text-[#e8d5a3]/80 hover:bg-white/5 sm:grid"
             title={sound ? "Звук включён" : "Звук выключен"}
           >
             {sound ? "♪" : "×"}
@@ -342,7 +381,7 @@ function NavBtn({
   return (
     <button
       onClick={onClick}
-      className={`rounded-full px-2 py-1.5 text-xs font-medium transition sm:px-4 sm:text-sm ${
+      className={`rounded-full px-1.5 py-1.5 text-[11px] font-medium transition sm:px-4 sm:text-sm ${
         active ? "bg-[#d4a853] text-[#071018]" : "text-[#e8d5a3]/80 hover:bg-white/5"
       }`}
     >
@@ -364,20 +403,24 @@ function Home({
   progress,
   daily,
   dailyDone,
+  dueCount,
   onOpenDaily,
   onMode,
   onAtlas,
   onStats,
   onCrossword,
+  onReview,
 }: {
   progress: Progress;
   daily: Capital;
   dailyDone: boolean;
+  dueCount: number;
   onOpenDaily: () => void;
   onMode: (m: Mode) => void;
   onAtlas: () => void;
   onStats: () => void;
   onCrossword: () => void;
+  onReview: () => void;
 }) {
   const mastered = Object.values(progress.mastery).filter((m) => m >= 3).length;
   const pct = Math.round((mastered / capitals.length) * 100);
@@ -504,6 +547,28 @@ function Home({
         </div>
       </section>
 
+      {dueCount > 0 && (
+        <section className="relative overflow-hidden rounded-3xl border border-[#3d9b7a]/35 bg-gradient-to-r from-[#3d9b7a]/15 via-transparent to-[#d4a853]/10 p-5 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.3em] text-[#8fd6ba]">интервальное повторение</div>
+              <div className="mt-2 font-serif text-2xl">
+                Пора освежить {dueCount} {plural(dueCount, "столицу", "столицы", "столиц")}
+              </div>
+              <p className="mt-1 text-sm text-[#f4ead5]/70">
+                Карточки возвращаются через 1, 3, 7, 16 и 35 дней — так забывание не побеждает.
+              </p>
+            </div>
+            <button
+              onClick={onReview}
+              className="rounded-full bg-[#3d9b7a] px-6 py-3 text-sm font-semibold text-[#04140f] hover:brightness-110"
+            >
+              Повторить сейчас
+            </button>
+          </div>
+        </section>
+      )}
+
       <section>
         <div className="mb-5 flex items-end justify-between">
           <h2 className="font-serif text-3xl sm:text-4xl">Режимы</h2>
@@ -553,6 +618,13 @@ function Home({
             icon="✎"
             featured
             onClick={onCrossword}
+          />
+          <ModeCard
+            kicker="география"
+            title="Страна на карте"
+            text="Показывают страну — ты находишь её на карте Европы. Компас не нужен."
+            icon="◈"
+            onClick={() => onMode("map")}
           />
           <ModeCard
             kicker="читать"
@@ -626,6 +698,8 @@ function Setup({
   const pool = filterCapitals(region);
   const exam = mode === "exam";
   const blitz = mode === "blitz";
+  const mapMode = mode === "map";
+  const mapPool = pool.filter((c) => MAP_IDS.has(c.id));
 
   return (
     <div className="mx-auto max-w-3xl animate-rise">
@@ -679,6 +753,12 @@ function Setup({
         </p>
       )}
       {blitz && <p className="mt-8 text-sm text-[#e8d5a3]/70">Минута на всё. Очки растут с комбо. Ошибки не останавливают часы.</p>}
+      {mapMode && (
+        <p className="mt-8 text-sm text-[#e8d5a3]/70">
+          Показываем страну — находишь её на карте. Здесь {mapPool.length}{" "}
+          {plural(mapPool.length, "страна", "страны", "стран")}: микрогосударства отмечены точками.
+        </p>
+      )}
 
       <button
         onClick={onStart}
@@ -727,9 +807,11 @@ function Quiz({
   region,
   count,
   sound,
+  progress,
   setProgress,
   onExit,
   onDone,
+  ids,
 }: {
   mode: Mode;
   region: RegionId;
@@ -739,9 +821,24 @@ function Quiz({
   setProgress: React.Dispatch<React.SetStateAction<Progress>>;
   onExit: () => void;
   onDone: (r: QuizResult) => void;
+  ids?: string[] | null;
 }) {
-  const [deck, setDeck] = useState<Capital[]>(() => buildDeck(region, count));
   const pool = useMemo(() => filterCapitals(region), [region]);
+  // the map quiz can only ask about countries that exist on the map
+  const effectivePool = useMemo(
+    () => (mode === "map" ? pool.filter((c) => MAP_IDS.has(c.id)) : pool),
+    [pool, mode]
+  );
+
+  function makeDeck(): Capital[] {
+    if (ids && ids.length > 0) {
+      const picked = buildDeckFromIds(ids);
+      if (picked.length > 0) return picked;
+    }
+    return count === "all" ? shuffle(effectivePool) : pickN(effectivePool, count);
+  }
+
+  const [deck, setDeck] = useState<Capital[]>(() => makeDeck());
   const [i, setI] = useState(0);
   const [points, setPoints] = useState(0);
   const [streak, setStreak] = useState(0);
@@ -769,14 +866,15 @@ function Quiz({
     return shuffle([item, ...distractors(item, pool.length > 3 ? pool : capitals, 2)]);
   }, [item?.id, isType, pool]);
 
-  const deckKey = `${region}:${count}`;
+  const deckKey = `${region}:${count}:${mode}:${(ids ?? []).join(",")}`;
   const deckKeyRef = useRef(deckKey);
   useEffect(() => {
     if (deckKeyRef.current === deckKey) return;
     deckKeyRef.current = deckKey;
-    setDeck(buildDeck(region, count));
+    setDeck(makeDeck());
     setI(0);
-  }, [deckKey, region, count]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deckKey]);
 
   useEffect(() => {
     if (mode !== "blitz") return;
@@ -852,6 +950,7 @@ function Quiz({
         seen,
         correct,
         mastery: { ...prev.mastery, [id]: clampMastery((prev.mastery[id] || 0) + delta) },
+        srs: { ...prev.srs, [id]: scheduleReview(prev.srs[id], ok) },
       };
     });
   }
@@ -891,6 +990,12 @@ function Quiz({
     resolve(opt.id === item.id);
   }
 
+  function mapPick(id: string) {
+    if (statusRef.current !== "idle") return;
+    setPicked(id);
+    resolve(id === item.id);
+  }
+
   function submitType() {
     if (statusRef.current !== "idle") return;
     const value = typedRef.current;
@@ -924,7 +1029,7 @@ function Quiz({
     if (i + 1 >= deck.length) {
       // Blitz runs on the clock, not on a finite deck: build the next round on the fly.
       if (mode === "blitz") {
-        const more = buildDeck(region, "all").filter((c) => c.id !== item.id);
+        const more = shuffle(effectivePool).filter((c) => c.id !== item.id);
         if (more.length > 0) {
           setDeck((d) => [...d, ...more]);
         } else {
@@ -999,6 +1104,7 @@ function Quiz({
             {Math.min(i + 1, deck.length)} / {qTotal}
           </span>
           <span className="text-[#d4a853]">★ {points}</span>
+          {mode === "review" && <span className="text-[#8fd6ba]">повторение</span>}
           {streak > 1 && <span className="text-teal-300">комбо ×{streak}</span>}
         </div>
       </div>
@@ -1016,11 +1122,11 @@ function Quiz({
       >
         <div className="text-center">
           <div className="text-[10px] uppercase tracking-[0.32em] text-[#d4a853]">
-            {isReverse ? "какая это страна?" : "назови столицу"}
+            {mode === "map" ? "найди страну на карте" : isReverse ? "какая это страна?" : "назови столицу"}
           </div>
-          <div className="mt-4 text-6xl">{item.flag}</div>
+          {mode !== "map" && <div className="mt-4 text-6xl">{item.flag}</div>}
           <h2 className="mt-4 font-serif text-4xl sm:text-5xl">{isReverse ? item.capital : item.country}</h2>
-          {!isReverse && <p className="mt-2 text-sm text-[#e8d5a3]/60">{item.countryEn}</p>}
+          {!isReverse && mode !== "map" && <p className="mt-2 text-sm text-[#e8d5a3]/60">{item.countryEn}</p>}
         </div>
 
         {isType ? (
@@ -1100,6 +1206,21 @@ function Quiz({
                 Можно писать по-русски или латиницей. Ё и Е — одно и то же.
               </p>
             </form>
+          </div>
+        ) : mode === "map" ? (
+          <div className="mt-4">
+            <EuropeMap
+              onPick={mapPick}
+              mastery={progress.mastery}
+              highlight={status !== "idle" ? item.id : null}
+              wrong={status === "bad" ? picked : null}
+              selected={status === "idle" ? picked : null}
+              hideNames
+              className="h-auto w-full rounded-2xl bg-[#071018]/60"
+            />
+            <p className="mt-3 text-center text-xs text-[#e8d5a3]/45">
+              Микрогосударства отмечены точками · нажми на страну
+            </p>
           </div>
         ) : (
           <div className="mt-8 grid gap-3">
@@ -1377,7 +1498,65 @@ function Info({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Stats({ progress, onReset }: { progress: Progress; onReset: () => void }) {
+function MapView({ progress, onOpen }: { progress: Progress; onOpen: (id: string) => void }) {
+  const [pick, setPick] = useState<string | null>(null);
+  const c = pick ? capitals.find((x) => x.id === pick) : null;
+  const known = capitals.filter((x) => (progress.mastery[x.id] || 0) >= 3).length;
+
+  return (
+    <div className="animate-rise">
+      <p className="text-xs uppercase tracking-[0.32em] text-[#d4a853]">география на глаз</p>
+      <h2 className="mt-2 font-serif text-4xl sm:text-5xl">Карта Европы</h2>
+      <p className="mt-3 max-w-2xl text-[#f4ead5]/70">
+        Нажми на страну, чтобы открыть её столицу. Золотым подсвечены столицы, которые ты уже знаешь на
+        «твёрдо», бледным — те, что только начались.
+      </p>
+      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <div className="rounded-3xl border border-[#e8d5a3]/15 bg-[#0a1724] p-3 shadow-2xl shadow-black/40 sm:p-5">
+          <EuropeMap mastery={progress.mastery} selected={pick} onPick={(id) => setPick(id)} />
+        </div>
+        <div className="glass rounded-3xl p-5">
+          <div className="text-[10px] uppercase tracking-[0.28em] text-[#d4a853]">выбрано</div>
+          {c ? (
+            <>
+              <div className="mt-3 text-4xl">{c.flag}</div>
+              <div className="mt-2 font-serif text-3xl">{c.capital}</div>
+              <div className="text-sm text-[#e8d5a3]/80">{c.country}</div>
+              <p className="mt-3 line-clamp-5 text-sm leading-relaxed text-[#f4ead5]/70">{c.facts[0]}</p>
+              <button
+                onClick={() => onOpen(c.id)}
+                className="mt-4 rounded-full bg-[#d4a853] px-5 py-2 text-sm font-semibold text-[#071018]"
+              >
+                Открыть карточку
+              </button>
+            </>
+          ) : (
+            <p className="mt-3 text-sm text-[#e8d5a3]/60">Ткни в любую страну — покажу столицу и факт.</p>
+          )}
+          <div className="mt-6 flex items-center justify-between text-xs text-[#e8d5a3]/50">
+            <span>
+              изучено {known} из {capitals.length}
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="inline-block h-3 w-3 rounded-sm bg-[#d4a853]/60" /> знаю
+              <span className="inline-block h-3 w-3 rounded-sm bg-[#f4ead5]/20" /> впереди
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Stats({
+  progress,
+  onReset,
+  onImport,
+}: {
+  progress: Progress;
+  onReset: () => void;
+  onImport: (p: Progress) => void;
+}) {
   const rows = [...capitals].sort((a, b) => (progress.mastery[a.id] || 0) - (progress.mastery[b.id] || 0));
   const weak = rows
     .filter((c) => (progress.seen[c.id] || 0) > 0 && (progress.mastery[c.id] || 0) < 3)
@@ -1445,6 +1624,49 @@ function Stats({ progress, onReset }: { progress: Progress; onReset: () => void 
           ))}
         </ul>
       </div>
+      <div className="glass rounded-3xl p-6">
+        <h3 className="font-serif text-2xl">Данные</h3>
+        <p className="mt-2 text-sm text-[#f4ead5]/70">
+          Прогресс хранится только в этом браузере. Скачай файл, чтобы перенести его на телефон или сохранить
+          копию — аккаунт и сервер не нужны.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            onClick={() => {
+              const blob = new Blob([exportProgress(progress)], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `atlas-europa-${todayKey()}.json`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="rounded-full bg-[#d4a853] px-5 py-2 text-sm font-semibold text-[#071018]"
+          >
+            Скачать прогресс
+          </button>
+          <label className="cursor-pointer rounded-full border border-[#e8d5a3]/30 px-5 py-2 text-sm">
+            Загрузить файл
+            <input
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (!file) return;
+                const restored = importProgress(await file.text());
+                if (restored) onImport(restored);
+                else alert("Не получилось прочитать файл прогресса.");
+              }}
+            />
+          </label>
+        </div>
+        <div className="mt-4 text-xs text-[#e8d5a3]/55">
+          К повторению сейчас: {dueIds(progress).length} · всего карточек в расписании:{" "}
+          {Object.keys(progress.srs).length}
+        </div>
+      </div>
       <button
         onClick={() => {
           if (confirm("Сбросить весь прогресс?")) onReset();
@@ -1471,11 +1693,13 @@ function Results({
   onHome,
   onRetry,
   onAtlas,
+  onMissed,
 }: {
   result: QuizResult;
   onHome: () => void;
   onRetry: () => void;
   onAtlas: () => void;
+  onMissed: () => void;
 }) {
   const pct = Math.round((result.score / Math.max(result.total, 1)) * 100);
   const g = gradeLabel(pct);
@@ -1508,6 +1732,14 @@ function Results({
         </div>
       )}
       <div className="mt-8 flex flex-wrap justify-center gap-3">
+        {result.missed.length > 0 && (
+          <button
+            onClick={onMissed}
+            className="rounded-full bg-[#3d9b7a] px-6 py-3 text-sm font-semibold text-[#04140f]"
+          >
+            Повторить ошибки ({result.missed.length})
+          </button>
+        )}
         <button onClick={onRetry} className="rounded-full bg-[#d4a853] px-6 py-3 text-sm font-semibold text-[#071018]">
           Ещё раз
         </button>
