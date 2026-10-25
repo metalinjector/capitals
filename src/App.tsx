@@ -307,7 +307,7 @@ function Home({
         <img
           src="/images/hero.jpg"
           alt="Европа с высоты"
-          className="h-[28rem] w-full object-cover sm:h-[32rem]"
+          className="h-[34rem] w-full object-cover sm:h-[32rem]"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-[#071018] via-[#071018]/75 to-[#071018]/20" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#071018] via-transparent to-[#071018]/40" />
@@ -315,7 +315,7 @@ function Home({
           <p className="animate-rise mb-3 text-xs uppercase tracking-[0.42em] text-[#d4a853]">
             интерактивный атлас · 45 столиц · {totalFacts} фактов
           </p>
-          <h1 className="animate-rise font-serif text-5xl font-semibold leading-[0.95] sm:text-7xl">
+          <h1 className="animate-rise font-serif text-4xl font-semibold leading-[0.95] sm:text-7xl">
             Выучи столицы
             <br />
             <span className="gold-text italic">как путешественница</span>
