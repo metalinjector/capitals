@@ -23,18 +23,11 @@ export interface Capital {
   micro?: boolean;
   school: boolean;
   difficulty: 1 | 2 | 3;
-  population: string;
   landmark: string;
-  founded: string;
-  color: string;
   facts: string[];
   aliases: string[];
   countryAliases: string[];
-  image?: string;
 }
-
-const px = (id: string, file?: string) =>
-  `https://images.pexels.com/photos/${id}/${file ?? `pexels-photo-${id}`}.jpeg?auto=compress&cs=tinysrgb&w=1400`;
 
 export const capitals: Capital[] = [
   {
@@ -48,15 +41,11 @@ export const capitals: Capital[] = [
     region: "central",
     school: true,
     difficulty: 1,
-    population: "2 млн",
     landmark: "Дворец Шёнбрунн",
-    founded: "I век н. э.",
-    color: "from-red-800 via-red-600 to-stone-200",
-    image: px("16292000"),
     aliases: ["вена", "vienna", "wien"],
     countryAliases: ["австрия", "austria"],
     facts: [
-      "Круассан придумала не Франция: венский kipferl («полумесяц») привезла во Францию Мария-Антуанетта.",
+      "В 2011 году венская кофейная культура была внесена в национальный реестр нематериального культурного наследия Австрии.",
       "Вена много раз признавалась одним из самых удобных для жизни городов мира — кофейни здесь работают как вторая гостиная.",
       "По Дунаю можно доплыть из Вены до ещё трёх столиц: Братиславы, Будапешта и Белграда.",
     ],
@@ -72,10 +61,7 @@ export const capitals: Capital[] = [
     region: "balkans",
     school: false,
     difficulty: 3,
-    population: "500 тыс.",
     landmark: "Площадь Скандербега",
-    founded: "1614",
-    color: "from-red-800 via-red-700 to-stone-900",
     aliases: ["тирана", "tirana", "tirane", "tiranë"],
     countryAliases: ["албания", "albania"],
     facts: [
@@ -96,16 +82,12 @@ export const capitals: Capital[] = [
     micro: true,
     school: false,
     difficulty: 3,
-    population: "23 тыс.",
     landmark: "Casa de la Vall",
-    founded: "IX век",
-    color: "from-blue-800 via-yellow-500 to-red-700",
     aliases: [
       "андорра-ла-велья",
       "андорра ла велья",
       "андорралавелья",
       "andorra la vella",
-      "андорра",
     ],
     countryAliases: ["андорра", "andorra"],
     facts: [
@@ -125,10 +107,7 @@ export const capitals: Capital[] = [
     region: "east",
     school: true,
     difficulty: 1,
-    population: "2 млн",
     landmark: "Национальная библиотека",
-    founded: "1067",
-    color: "from-red-700 via-green-700 to-emerald-900",
     aliases: ["минск", "minsk"],
     countryAliases: ["беларусь", "белоруссия", "belarus"],
     facts: [
@@ -148,11 +127,7 @@ export const capitals: Capital[] = [
     region: "west",
     school: true,
     difficulty: 1,
-    population: "1,2 млн",
     landmark: "Гран-Плас",
-    founded: "X век",
-    color: "from-black via-yellow-500 to-red-700",
-    image: px("8290868"),
     aliases: ["брюссель", "brussels", "bruxelles", "brussel"],
     countryAliases: ["бельгия", "belgium"],
     facts: [
@@ -172,10 +147,7 @@ export const capitals: Capital[] = [
     region: "east",
     school: true,
     difficulty: 2,
-    population: "1,3 млн",
     landmark: "Храм-памятник Александра Невского",
-    founded: "VII век до н. э.",
-    color: "from-white via-green-700 to-red-700",
     aliases: ["софия", "sofia", "sofiya"],
     countryAliases: ["болгария", "bulgaria"],
     facts: [
@@ -195,10 +167,7 @@ export const capitals: Capital[] = [
     region: "balkans",
     school: false,
     difficulty: 3,
-    population: "340 тыс.",
     landmark: "Мост Латинский / Башчаршия",
-    founded: "1461",
-    color: "from-blue-700 via-yellow-400 to-blue-900",
     aliases: ["сараево", "sarajevo"],
     countryAliases: ["босния и герцеговина", "босния", "bosnia", "bosnia and herzegovina"],
     facts: [
@@ -219,10 +188,7 @@ export const capitals: Capital[] = [
     micro: true,
     school: true,
     difficulty: 2,
-    population: "около 800",
     landmark: "Собор Святого Петра",
-    founded: "1929",
-    color: "from-yellow-300 via-yellow-500 to-amber-900",
     aliases: ["ватикан", "vatican", "vatican city", "citta del vaticano"],
     countryAliases: ["ватикан", "vatican", "святой престол"],
     facts: [
@@ -242,13 +208,9 @@ export const capitals: Capital[] = [
     region: "west",
     school: true,
     difficulty: 1,
-    population: "9 млн",
     landmark: "Биг-Бен и Вестминстер",
-    founded: "43 н. э.",
-    color: "from-blue-900 via-red-700 to-blue-800",
-    image: px("230793"),
     aliases: ["лондон", "london"],
-    countryAliases: ["великобритания", "англия", "united kingdom", "uk", "britain"],
+    countryAliases: ["великобритания", "соединенное королевство", "united kingdom", "uk", "britain"],
     facts: [
       "Биг-Бен — это не башня, а колокол внутри неё. Башня официально называется башней Елизаветы.",
       "Лондонское метро — старейшее в мире: первая линия открылась в 1863 году.",
@@ -266,11 +228,7 @@ export const capitals: Capital[] = [
     region: "central",
     school: true,
     difficulty: 1,
-    population: "1,8 млн",
     landmark: "Здание парламента",
-    founded: "1873",
-    color: "from-red-700 via-white to-green-700",
-    image: px("159412", "budapest-parliament-danube-ship-passage-159412"),
     aliases: ["будапешт", "budapest"],
     countryAliases: ["венгрия", "hungary"],
     facts: [
@@ -290,11 +248,7 @@ export const capitals: Capital[] = [
     region: "west",
     school: true,
     difficulty: 1,
-    population: "3,7 млн",
     landmark: "Бранденбургские ворота",
-    founded: "XIII век",
-    color: "from-black via-red-700 to-yellow-500",
-    image: px("29862820"),
     aliases: ["берлин", "berlin"],
     countryAliases: ["германия", "germany", "deutschland"],
     facts: [
@@ -314,11 +268,7 @@ export const capitals: Capital[] = [
     region: "south",
     school: true,
     difficulty: 1,
-    population: "3,1 млн",
     landmark: "Акрополь и Парфенон",
-    founded: "≈ 1400 до н. э.",
-    color: "from-blue-700 via-blue-500 to-white",
-    image: px("14355763"),
     aliases: ["афины", "athens", "athina"],
     countryAliases: ["греция", "greece", "эллада"],
     facts: [
@@ -338,11 +288,7 @@ export const capitals: Capital[] = [
     region: "north",
     school: true,
     difficulty: 1,
-    population: "1,4 млн",
     landmark: "Нюхавн",
-    founded: "1167",
-    color: "from-red-700 via-red-600 to-white",
-    image: px("11064539"),
     aliases: ["копенгаген", "copenhagen", "kobenhavn", "københavn"],
     countryAliases: ["дания", "denmark"],
     facts: [
@@ -362,11 +308,7 @@ export const capitals: Capital[] = [
     region: "west",
     school: true,
     difficulty: 1,
-    population: "1,4 млн",
     landmark: "Мост Хейпенни",
-    founded: "IX век",
-    color: "from-green-700 via-white to-orange-500",
-    image: px("33999754"),
     aliases: ["дублин", "dublin"],
     countryAliases: ["ирландия", "ireland"],
     facts: [
@@ -386,11 +328,7 @@ export const capitals: Capital[] = [
     region: "north",
     school: true,
     difficulty: 2,
-    population: "140 тыс.",
     landmark: "Халльгримскиркья",
-    founded: "874",
-    color: "from-blue-900 via-blue-600 to-red-600",
-    image: px("6946281"),
     aliases: ["рейкьявик", "рейкявик", "reykjavik", "reykjavík"],
     countryAliases: ["исландия", "iceland"],
     facts: [
@@ -410,11 +348,7 @@ export const capitals: Capital[] = [
     region: "south",
     school: true,
     difficulty: 1,
-    population: "3,3 млн",
     landmark: "Королевский дворец",
-    founded: "IX век",
-    color: "from-red-700 via-yellow-400 to-red-800",
-    image: px("2374985"),
     aliases: ["мадрид", "madrid"],
     countryAliases: ["испания", "spain"],
     facts: [
@@ -434,11 +368,7 @@ export const capitals: Capital[] = [
     region: "south",
     school: true,
     difficulty: 1,
-    population: "2,8 млн",
     landmark: "Колизей",
-    founded: "753 до н. э.",
-    color: "from-green-700 via-white to-red-700",
-    image: px("15562413"),
     aliases: ["рим", "rome", "roma"],
     countryAliases: ["италия", "italy"],
     facts: [
@@ -458,10 +388,7 @@ export const capitals: Capital[] = [
     region: "south",
     school: false,
     difficulty: 3,
-    population: "330 тыс.",
     landmark: "Венецианские стены",
-    founded: "≈ 2500 до н. э.",
-    color: "from-orange-300 via-white to-green-600",
     aliases: ["никосия", "никозия", "nicosia", "lefkosia"],
     countryAliases: ["кипр", "cyprus"],
     facts: [
@@ -481,10 +408,7 @@ export const capitals: Capital[] = [
     region: "north",
     school: true,
     difficulty: 2,
-    population: "610 тыс.",
     landmark: "Домский собор",
-    founded: "1201",
-    color: "from-red-900 via-white to-red-900",
     aliases: ["рига", "riga", "rīga"],
     countryAliases: ["латвия", "latvia"],
     facts: [
@@ -504,10 +428,7 @@ export const capitals: Capital[] = [
     region: "north",
     school: true,
     difficulty: 2,
-    population: "590 тыс.",
     landmark: "Башня Гедимина",
-    founded: "1323",
-    color: "from-yellow-400 via-green-700 to-red-700",
     aliases: ["вильнюс", "vilnius"],
     countryAliases: ["литва", "lithuania"],
     facts: [
@@ -528,10 +449,7 @@ export const capitals: Capital[] = [
     micro: true,
     school: false,
     difficulty: 3,
-    population: "5,7 тыс.",
     landmark: "Замок Вадуц",
-    founded: "XII век",
-    color: "from-blue-800 via-red-700 to-yellow-500",
     aliases: ["вадуц", "vaduz"],
     countryAliases: ["лихтенштейн", "liechtenstein"],
     facts: [
@@ -552,10 +470,7 @@ export const capitals: Capital[] = [
     micro: true,
     school: true,
     difficulty: 2,
-    population: "130 тыс.",
     landmark: "Казематы Бок",
-    founded: "963",
-    color: "from-red-600 via-white to-sky-400",
     aliases: ["люксембург", "luxembourg", "luxembourg city", "летцебург"],
     countryAliases: ["люксембург", "luxembourg"],
     facts: [
@@ -576,10 +491,7 @@ export const capitals: Capital[] = [
     micro: true,
     school: false,
     difficulty: 3,
-    population: "6 тыс.",
     landmark: "Собор Святого Иоанна",
-    founded: "1566",
-    color: "from-red-700 via-white to-red-800",
     aliases: ["валлетта", "валета", "valletta", "valetta"],
     countryAliases: ["мальта", "malta"],
     facts: [
@@ -599,10 +511,7 @@ export const capitals: Capital[] = [
     region: "east",
     school: true,
     difficulty: 2,
-    population: "700 тыс.",
     landmark: "Триумфальная арка",
-    founded: "1436",
-    color: "from-blue-700 via-yellow-400 to-red-700",
     aliases: ["кишинёв", "кишинев", "chisinau", "chișinău"],
     countryAliases: ["молдова", "молдавия", "moldova"],
     facts: [
@@ -623,10 +532,7 @@ export const capitals: Capital[] = [
     micro: true,
     school: true,
     difficulty: 2,
-    population: "39 тыс.",
     landmark: "Казино Монте-Карло",
-    founded: "1215",
-    color: "from-red-700 via-red-600 to-white",
     aliases: ["монако", "monaco", "monte carlo", "монте-карло"],
     countryAliases: ["монако", "monaco"],
     facts: [
@@ -646,11 +552,7 @@ export const capitals: Capital[] = [
     region: "west",
     school: true,
     difficulty: 1,
-    population: "920 тыс.",
     landmark: "Каналы и дома XVII века",
-    founded: "XIII век",
-    color: "from-red-600 via-white to-blue-700",
-    image: px("12705128"),
     aliases: ["амстердам", "amsterdam"],
     countryAliases: ["нидерланды", "голландия", "netherlands", "holland"],
     facts: [
@@ -670,11 +572,7 @@ export const capitals: Capital[] = [
     region: "north",
     school: true,
     difficulty: 1,
-    population: "710 тыс.",
     landmark: "Оперный театр",
-    founded: "1040",
-    color: "from-red-700 via-white to-blue-800",
-    image: px("20202718"),
     aliases: ["осло", "oslo"],
     countryAliases: ["норвегия", "norway"],
     facts: [
@@ -694,11 +592,7 @@ export const capitals: Capital[] = [
     region: "central",
     school: true,
     difficulty: 1,
-    population: "1,8 млн",
     landmark: "Старый город / Сирена",
-    founded: "XIII век",
-    color: "from-white via-red-600 to-red-800",
-    image: px("26795216"),
     aliases: ["варшава", "warsaw", "warszawa"],
     countryAliases: ["польша", "poland"],
     facts: [
@@ -718,11 +612,7 @@ export const capitals: Capital[] = [
     region: "south",
     school: true,
     difficulty: 1,
-    population: "550 тыс.",
     landmark: "Трамвай 28 и район Алфама",
-    founded: "≈ 1200 до н. э.",
-    color: "from-green-800 via-red-700 to-yellow-500",
-    image: px("29743111"),
     aliases: ["лиссабон", "lisbon", "lisboa"],
     countryAliases: ["португалия", "portugal"],
     facts: [
@@ -742,11 +632,7 @@ export const capitals: Capital[] = [
     region: "east",
     school: true,
     difficulty: 1,
-    population: "13 млн",
     landmark: "Кремль и собор Василия Блаженного",
-    founded: "1147",
-    color: "from-white via-blue-700 to-red-700",
-    image: px("10000075"),
     aliases: ["москва", "moscow", "moskva"],
     countryAliases: ["россия", "russia"],
     facts: [
@@ -766,10 +652,7 @@ export const capitals: Capital[] = [
     region: "east",
     school: true,
     difficulty: 2,
-    population: "1,8 млн",
     landmark: "Дворец парламента",
-    founded: "1459",
-    color: "from-blue-700 via-yellow-400 to-red-700",
     aliases: ["бухарест", "bucharest", "bucuresti", "bucurești"],
     countryAliases: ["румыния", "romania"],
     facts: [
@@ -790,10 +673,7 @@ export const capitals: Capital[] = [
     micro: true,
     school: false,
     difficulty: 3,
-    population: "4 тыс.",
     landmark: "Три башни на горе Титано",
-    founded: "301",
-    color: "from-sky-400 via-white to-sky-500",
     aliases: ["сан-марино", "сан марино", "san marino"],
     countryAliases: ["сан-марино", "san marino"],
     facts: [
@@ -813,10 +693,7 @@ export const capitals: Capital[] = [
     region: "balkans",
     school: false,
     difficulty: 3,
-    population: "530 тыс.",
     landmark: "Каменный мост",
-    founded: "III век до н. э.",
-    color: "from-red-700 via-yellow-400 to-red-800",
     aliases: ["скопье", "skopje", "skopie"],
     countryAliases: ["северная македония", "македония", "north macedonia"],
     facts: [
@@ -836,10 +713,7 @@ export const capitals: Capital[] = [
     region: "balkans",
     school: true,
     difficulty: 2,
-    population: "1,4 млн",
     landmark: "Крепость Калемегдан",
-    founded: "III век до н. э.",
-    color: "from-red-700 via-blue-800 to-white",
     aliases: ["белград", "belgrade", "beograd"],
     countryAliases: ["сербия", "serbia"],
     facts: [
@@ -859,10 +733,7 @@ export const capitals: Capital[] = [
     region: "central",
     school: true,
     difficulty: 2,
-    population: "480 тыс.",
     landmark: "Братиславский град",
-    founded: "X век",
-    color: "from-white via-blue-800 to-red-700",
     aliases: ["братислава", "bratislava"],
     countryAliases: ["словакия", "slovakia"],
     facts: [
@@ -882,10 +753,7 @@ export const capitals: Capital[] = [
     region: "balkans",
     school: false,
     difficulty: 3,
-    population: "295 тыс.",
     landmark: "Люблянский град и дракон",
-    founded: "I век до н. э.",
-    color: "from-white via-blue-700 to-red-700",
     aliases: ["любляна", "ljubljana", "любляна"],
     countryAliases: ["словения", "slovenia"],
     facts: [
@@ -905,10 +773,7 @@ export const capitals: Capital[] = [
     region: "east",
     school: true,
     difficulty: 1,
-    population: "2,9 млн",
     landmark: "София Киевская / Крещатик",
-    founded: "V–VI век",
-    color: "from-blue-500 via-blue-400 to-yellow-400",
     aliases: ["киев", "kyiv", "kiev", "київ"],
     countryAliases: ["украина", "ukraine"],
     facts: [
@@ -928,11 +793,7 @@ export const capitals: Capital[] = [
     region: "north",
     school: true,
     difficulty: 1,
-    population: "660 тыс.",
     landmark: "Кафедральный собор",
-    founded: "1550",
-    color: "from-white via-blue-600 to-blue-900",
-    image: px("37599514"),
     aliases: ["хельсинки", "helsinki", "гельсингфорс"],
     countryAliases: ["финляндия", "finland"],
     facts: [
@@ -952,11 +813,7 @@ export const capitals: Capital[] = [
     region: "west",
     school: true,
     difficulty: 1,
-    population: "2,1 млн",
     landmark: "Эйфелева башня",
-    founded: "III век до н. э.",
-    color: "from-blue-800 via-white to-red-700",
-    image: px("34503355"),
     aliases: ["париж", "paris"],
     countryAliases: ["франция", "france"],
     facts: [
@@ -976,10 +833,7 @@ export const capitals: Capital[] = [
     region: "balkans",
     school: true,
     difficulty: 2,
-    population: "770 тыс.",
     landmark: "Площадь бана Елачича",
-    founded: "1094",
-    color: "from-red-700 via-white to-blue-800",
     aliases: ["загреб", "zagreb"],
     countryAliases: ["хорватия", "croatia"],
     facts: [
@@ -999,10 +853,7 @@ export const capitals: Capital[] = [
     region: "balkans",
     school: false,
     difficulty: 3,
-    population: "190 тыс.",
     landmark: "Мост Миллениум",
-    founded: "XI век",
-    color: "from-red-800 via-yellow-500 to-red-900",
     aliases: ["подгорица", "podgorica"],
     countryAliases: ["черногория", "montenegro"],
     facts: [
@@ -1022,11 +873,7 @@ export const capitals: Capital[] = [
     region: "central",
     school: true,
     difficulty: 1,
-    population: "1,4 млн",
     landmark: "Карлов мост и Пражский град",
-    founded: "IX век",
-    color: "from-white via-red-700 to-blue-800",
-    image: px("36731388"),
     aliases: ["прага", "prague", "praha"],
     countryAliases: ["чехия", "чешская республика", "czechia", "czech republic"],
     facts: [
@@ -1046,10 +893,7 @@ export const capitals: Capital[] = [
     region: "west",
     school: true,
     difficulty: 2,
-    population: "135 тыс.",
     landmark: "Часовая башня Цитглогге",
-    founded: "1191",
-    color: "from-red-700 via-red-600 to-white",
     aliases: ["берн", "bern", "berne"],
     countryAliases: ["швейцария", "switzerland"],
     facts: [
@@ -1069,11 +913,7 @@ export const capitals: Capital[] = [
     region: "north",
     school: true,
     difficulty: 1,
-    population: "1 млн",
     landmark: "Гамла стан",
-    founded: "1252",
-    color: "from-blue-700 via-yellow-400 to-blue-800",
-    image: px("19391718"),
     aliases: ["стокгольм", "stockholm"],
     countryAliases: ["швеция", "sweden"],
     facts: [
@@ -1093,10 +933,7 @@ export const capitals: Capital[] = [
     region: "north",
     school: true,
     difficulty: 2,
-    population: "450 тыс.",
     landmark: "Вышгород и Ратушная площадь",
-    founded: "XIII век",
-    color: "from-sky-400 via-black to-white",
     aliases: ["таллин", "таллинн", "tallinn", "reval"],
     countryAliases: ["эстония", "estonia"],
     facts: [

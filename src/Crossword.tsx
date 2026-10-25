@@ -8,7 +8,14 @@ const SIZES = [
   { id: "big", title: "Большой", words: 16, max: 17, hint: "16 слов · вызов" },
 ] as const;
 
+const CELL_SCALES = [
+  { id: "small", title: "Мелкие", short: "S", cell: 40, icon: 8 },
+  { id: "medium", title: "Средние", short: "M", cell: 50, icon: 12 },
+  { id: "large", title: "Крупные", short: "L", cell: 60, icon: 16 },
+] as const;
+
 type SizeId = (typeof SIZES)[number]["id"];
+type CellScale = (typeof CELL_SCALES)[number]["id"];
 type ClueMode = "country" | "fact";
 
 const STORE_KEY = "atlas-europa-crossword-v1";
@@ -17,6 +24,7 @@ const STORE_KEY = "atlas-europa-crossword-v1";
 interface SavedCrossword {
   region: RegionId;
   size: SizeId;
+  cellScale: CellScale;
   clueMode: ClueMode;
   puzzle: Puzzle;
   values: Record<string, string>;
@@ -61,6 +69,7 @@ const k = (r: number, c: number) => `${r},${c}`;
 export default function Crossword({ onSolved }: { onSolved: (points: number) => void }) {
   const [region, setRegion] = useState<RegionId>("school");
   const [size, setSize] = useState<SizeId>("classic");
+  const [cellScale, setCellScale] = useState<CellScale>("small");
   const [clueMode, setClueMode] = useState<ClueMode>("country");
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -73,6 +82,10 @@ export default function Crossword({ onSolved }: { onSolved: (points: number) => 
   const [showCountry, setShowCountry] = useState<Record<string, true>>({});
   const inputRef = useRef<HTMLInputElement>(null);
   const rewarded = useRef(false);
+
+  function focusAnswerInput() {
+    inputRef.current?.focus({ preventScroll: true });
+  }
 
   function newPuzzle(r = region, s = size) {
     const cfg = SIZES.find((x) => x.id === s)!;
@@ -93,7 +106,9 @@ export default function Crossword({ onSolved }: { onSolved: (points: number) => 
       setSel({ r: first.row, c: first.col });
       setDir(first.dir);
     }
-    setTimeout(() => inputRef.current?.focus(), 60);
+    setTimeout(() => {
+      if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) focusAnswerInput();
+    }, 60);
   }
 
   // An unfinished grid survives switching to another section and coming back:
@@ -103,6 +118,7 @@ export default function Crossword({ onSolved }: { onSolved: (points: number) => 
     if (saved) {
       setRegion(saved.region);
       setSize(SIZES.some((x) => x.id === saved.size) ? saved.size : "classic");
+      setCellScale(CELL_SCALES.some((x) => x.id === saved.cellScale) ? saved.cellScale : "small");
       setClueMode(saved.clueMode === "fact" ? "fact" : "country");
       setPuzzle(saved.puzzle);
       setValues(saved.values ?? {});
@@ -124,6 +140,7 @@ export default function Crossword({ onSolved }: { onSolved: (points: number) => 
     const snapshot: SavedCrossword = {
       region,
       size,
+      cellScale,
       clueMode,
       puzzle,
       values,
@@ -142,7 +159,7 @@ export default function Crossword({ onSolved }: { onSolved: (points: number) => 
       }
     }, 400);
     return () => window.clearTimeout(t);
-  }, [puzzle, values, revealed, sel, dir, seconds, solved, showCountry, region, size, clueMode]);
+  }, [puzzle, values, revealed, sel, dir, seconds, solved, showCountry, region, size, cellScale, clueMode]);
 
   useEffect(() => {
     if (!puzzle || solved) return;
@@ -212,14 +229,14 @@ export default function Crossword({ onSolved }: { onSolved: (points: number) => 
       setDir(list[0].dir);
     }
     setSel({ r, c });
-    inputRef.current?.focus();
+    focusAnswerInput();
   }
 
   function selectEntry(e: Entry) {
     const firstEmpty = cellsOf(e).find(([r, c]) => !values[k(r, c)]) ?? [e.row, e.col];
     setDir(e.dir);
     setSel({ r: firstEmpty[0], c: firstEmpty[1] });
-    inputRef.current?.focus();
+    focusAnswerInput();
   }
 
   function step(delta: number) {
@@ -331,7 +348,7 @@ export default function Crossword({ onSolved }: { onSolved: (points: number) => 
     setValues((v) => ({ ...v, [key]: puzzle!.grid[sel.r][sel.c]! }));
     setRevealed((x) => ({ ...x, [key]: true }));
     step(1);
-    inputRef.current?.focus();
+    focusAnswerInput();
   }
 
   function revealWord() {
@@ -344,7 +361,7 @@ export default function Crossword({ onSolved }: { onSolved: (points: number) => 
     });
     setValues((v) => ({ ...v, ...nv }));
     setRevealed((x) => ({ ...x, ...nr }));
-    inputRef.current?.focus();
+    focusAnswerInput();
   }
 
   function clueText(e: Entry) {
@@ -354,6 +371,8 @@ export default function Crossword({ onSolved }: { onSolved: (points: number) => 
 
   const across = puzzle.entries.filter((e) => e.dir === "across");
   const down = puzzle.entries.filter((e) => e.dir === "down");
+  const cellConfig = CELL_SCALES.find((scale) => scale.id === cellScale) ?? CELL_SCALES[0];
+  const gridWidth = puzzle.cols * cellConfig.cell + (puzzle.cols - 1) * 3;
   const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
   const ss = String(seconds % 60).padStart(2, "0");
 
@@ -377,7 +396,7 @@ export default function Crossword({ onSolved }: { onSolved: (points: number) => 
       </div>
 
       {/* settings */}
-      <div className="glass mt-6 grid gap-4 rounded-3xl p-4 lg:grid-cols-[1.4fr_1fr_1fr_auto] lg:items-center">
+      <div className="glass mt-6 grid min-w-0 grid-cols-1 gap-4 rounded-3xl p-4 md:grid-cols-2 xl:grid-cols-[1.3fr_1fr_1fr_1fr_auto] xl:items-end">
         <select
           value={region}
           onChange={(e) => {
@@ -385,7 +404,7 @@ export default function Crossword({ onSolved }: { onSolved: (points: number) => 
             setRegion(r);
             newPuzzle(r, size);
           }}
-          className="input-gold rounded-full px-4 py-2.5 text-sm"
+          className="input-gold w-full min-w-0 rounded-full px-4 py-2.5 text-sm"
         >
           {REGIONS.map((r) => (
             <option key={r.id} value={r.id} className="bg-[#0c1c2a]">
@@ -393,7 +412,7 @@ export default function Crossword({ onSolved }: { onSolved: (points: number) => 
             </option>
           ))}
         </select>
-        <div className="flex rounded-full border border-white/10 p-1">
+        <div className="flex min-w-0 rounded-full border border-white/10 p-1">
           {SIZES.map((s) => (
             <button
               key={s.id}
@@ -410,7 +429,32 @@ export default function Crossword({ onSolved }: { onSolved: (points: number) => 
             </button>
           ))}
         </div>
-        <div className="flex rounded-full border border-white/10 p-1">
+        <div>
+          <div className="mb-1 px-3 text-[9px] uppercase tracking-[0.22em] text-[#e8d5a3]/55">Размер клеток</div>
+          <div role="group" aria-label="Размер клеток" className="flex min-w-0 rounded-full border border-white/10 p-1">
+            {CELL_SCALES.map((scale) => (
+              <button
+                key={scale.id}
+                type="button"
+                title={`${scale.title} клетки`}
+                aria-label={`${scale.title} клетки`}
+                aria-pressed={cellScale === scale.id}
+                onClick={() => setCellScale(scale.id)}
+                className={`flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-full px-2 py-1.5 text-xs transition ${
+                  cellScale === scale.id ? "bg-[#d4a853] text-[#071018]" : "text-[#e8d5a3]/80 hover:bg-white/5"
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  className="inline-block shrink-0 rounded-[2px] border border-current"
+                  style={{ width: scale.icon, height: scale.icon }}
+                />
+                <span>{scale.short}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex min-w-0 rounded-full border border-white/10 p-1">
           {(
             [
               ["country", "По стране"],
@@ -436,9 +480,9 @@ export default function Crossword({ onSolved }: { onSolved: (points: number) => 
         </button>
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+      <div className="mt-6 grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
         {/* grid */}
-        <div>
+        <div className="min-w-0">
           {active && (
             <div className="mb-3 flex items-center gap-3 rounded-2xl border border-[#d4a853]/30 bg-[#d4a853]/10 px-4 py-3">
               <span className="font-serif text-2xl text-[#d4a853]">
@@ -451,77 +495,91 @@ export default function Crossword({ onSolved }: { onSolved: (points: number) => 
             </div>
           )}
 
+          <p className="mb-2 text-right text-[10px] text-[#e8d5a3]/45">
+            ↔ Прокрутите сетку по горизонтали, если она не помещается
+          </p>
           <div
-            className="relative mx-auto rounded-[1.75rem] border border-[#e8d5a3]/15 bg-[#0a1724] p-3 shadow-2xl shadow-black/50 sm:p-5"
-            style={{ maxWidth: Math.min(puzzle.cols * 46 + 40, 760) }}
+            className="crossword-grid-scroll scroll-thin w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain pb-2"
+            role="region"
+            aria-label="Сетка кроссворда; при крупном размере прокручивайте по горизонтали"
+            tabIndex={0}
           >
             <div
-              className="grid gap-[3px]"
-              style={{ gridTemplateColumns: `repeat(${puzzle.cols}, minmax(0, 1fr))`, containerType: "inline-size" }}
-              onClick={() => inputRef.current?.focus()}
+              className="relative mx-auto w-max rounded-[1.75rem] border border-[#e8d5a3]/15 bg-[#0a1724] p-3 shadow-2xl shadow-black/50"
+              style={{ width: gridWidth + 26 }}
             >
-              {puzzle.grid.map((row, r) =>
-                row.map((ch, c) => {
-                  if (!ch)
-                    return <div key={k(r, c)} className="aspect-square rounded-[4px] bg-white/[0.02]" />;
-                  const key = k(r, c);
-                  const v = values[key] ?? "";
-                  const isSel = sel?.r === r && sel?.c === c;
-                  const inWord = activeCells.has(key);
-                  const wrong = checking && v && v !== ch;
-                  const right = checking && v === ch;
-                  const num = puzzle.numbers[r][c];
-                  return (
-                    <button
-                      key={key}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        select(r, c);
-                      }}
-                      className={`relative aspect-square select-none rounded-[5px] font-serif font-semibold uppercase leading-none transition-colors duration-150 ${
-                        isSel
-                          ? "bg-[#d4a853] text-[#071018] shadow-[0_0_0_2px_#fff3c4_inset]"
-                          : inWord
-                          ? "bg-[#f0dfb3] text-[#071018]"
-                          : solved
-                          ? "bg-[#cfe9dc] text-[#0b3b2c]"
-                          : "bg-[#f4ead5] text-[#071018] hover:bg-[#fbf3e1]"
-                      }`}
-                      style={{ fontSize: `calc(100cqw / ${puzzle.cols} * 0.52)` }}
-                    >
-                      {num && (
-                        <span
-                          className="absolute left-[8%] top-[4%] font-sans font-bold text-[#071018]/60"
-                          style={{ fontSize: `calc(100cqw / ${puzzle.cols} * 0.22)` }}
-                        >
-                          {num}
-                        </span>
-                      )}
-                      <span
-                        className={`${wrong ? "text-rose-600" : right ? "text-emerald-700" : ""} ${
-                          revealed[key] ? "italic text-[#8a6a2a]" : ""
+              <div
+                className="grid gap-[3px]"
+                style={{
+                  width: "100%",
+                  gridTemplateColumns: `repeat(${puzzle.cols}, ${cellConfig.cell}px)`,
+                  containerType: "inline-size",
+                }}
+                onClick={focusAnswerInput}
+              >
+                {puzzle.grid.map((row, r) =>
+                  row.map((ch, c) => {
+                    if (!ch)
+                      return <div key={k(r, c)} className="aspect-square rounded-[4px] bg-white/[0.02]" />;
+                    const key = k(r, c);
+                    const v = values[key] ?? "";
+                    const isSel = sel?.r === r && sel?.c === c;
+                    const inWord = activeCells.has(key);
+                    const wrong = checking && v && v !== ch;
+                    const right = checking && v === ch;
+                    const num = puzzle.numbers[r][c];
+                    return (
+                      <button
+                        key={key}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          select(r, c);
+                        }}
+                        className={`relative aspect-square select-none rounded-[5px] font-serif font-semibold uppercase leading-none transition-colors duration-150 ${
+                          isSel
+                            ? "bg-[#d4a853] text-[#071018] shadow-[0_0_0_2px_#fff3c4_inset]"
+                            : inWord
+                            ? "bg-[#f0dfb3] text-[#071018]"
+                            : solved
+                            ? "bg-[#cfe9dc] text-[#0b3b2c]"
+                            : "bg-[#f4ead5] text-[#071018] hover:bg-[#fbf3e1]"
                         }`}
+                        style={{ fontSize: `calc(100cqw / ${puzzle.cols} * 0.52)` }}
                       >
-                        {v}
-                      </span>
-                      {wrong && <span className="absolute inset-x-[15%] bottom-[12%] h-[2px] rounded bg-rose-500" />}
-                    </button>
-                  );
-                })
-              )}
-            </div>
+                        {num && (
+                          <span
+                            className="absolute left-[8%] top-[4%] font-sans font-bold text-[#071018]/60"
+                            style={{ fontSize: `calc(100cqw / ${puzzle.cols} * 0.22)` }}
+                          >
+                            {num}
+                          </span>
+                        )}
+                        <span
+                          className={`${wrong ? "text-rose-600" : right ? "text-emerald-700" : ""} ${
+                            revealed[key] ? "italic text-[#8a6a2a]" : ""
+                          }`}
+                        >
+                          {v}
+                        </span>
+                        {wrong && <span className="absolute inset-x-[15%] bottom-[12%] h-[2px] rounded bg-rose-500" />}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
 
-            <input
-              ref={inputRef}
-              onKeyDown={onKeyDown}
-              onInput={onInput}
-              aria-label="Ввод буквы кроссворда"
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="characters"
-              spellCheck={false}
-              className="pointer-events-none absolute left-1/2 top-1/2 h-px w-px opacity-0"
-            />
+              <input
+                ref={inputRef}
+                onKeyDown={onKeyDown}
+                onInput={onInput}
+                aria-label="Ввод буквы кроссворда"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                className="pointer-events-none absolute left-1/2 top-1/2 h-px w-px opacity-0"
+              />
+            </div>
           </div>
 
           <div className="mt-4 flex flex-wrap justify-center gap-2">
@@ -533,7 +591,7 @@ export default function Crossword({ onSolved }: { onSolved: (points: number) => 
             <ToolBtn
               onClick={() => {
                 setDir((d) => (d === "across" ? "down" : "across"));
-                inputRef.current?.focus();
+                focusAnswerInput();
               }}
             >
               ⇄ Направление

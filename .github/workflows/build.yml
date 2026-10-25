@@ -17,5 +17,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --no-fund --no-audit
+      - run: npm test
       - run: npx tsc --noEmit
       - run: npm run build

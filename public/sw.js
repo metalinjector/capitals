@@ -1,6 +1,6 @@
-/* ATLAS EUROPA — offline shell.
-   The app is a single HTML file, so caching it is enough to work without a network. */
-const VERSION = "atlas-europa-v2";
+/* ATLAS EUROPA — offline shell and runtime media cache.
+   The app is a single HTML file; recently viewed external photos are cached separately. */
+const VERSION = "atlas-europa-v4";
 const SHELL = [
   "/",
   "/index.html",
@@ -70,7 +70,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Photos from Wikimedia/Pexels: stale-while-revalidate, so atlases stay usable offline.
+  // External media: stale-while-revalidate, so recently viewed atlas photos can work offline.
   event.respondWith(
     caches.match(request).then((hit) => {
       const network = fetch(request)
